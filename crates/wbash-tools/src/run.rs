@@ -273,19 +273,26 @@ pub fn record_output(
                     }
                 }
             } else {
-                // keep at most a few informative summary-like lines
-                let lines: Vec<_> = raw
-                    .lines()
-                    .map(|l| l.trim_end())
-                    .filter(|l| !l.is_empty())
-                    .collect();
-                if !lines.is_empty() && (lines.len() <= 6 || raw.len() <= 200) {
-                    for l in &lines {
-                        result.low((*l).to_string());
+                // keep at most a few informative summary-like lines with bounded O(1) memory
+                let mut ring: std::collections::VecDeque<&str> = std::collections::VecDeque::with_capacity(7);
+                let mut count = 0usize;
+                for l in raw.lines() {
+                    let l = l.trim_end();
+                    if !l.is_empty() {
+                        count += 1;
+                        if ring.len() == 7 {
+                            ring.pop_front();
+                        }
+                        ring.push_back(l);
+                    }
+                }
+                if count > 0 && (count <= 6 || raw.len() <= 200) {
+                    for l in ring {
+                        result.low(l.to_string());
                     }
                 } else {
                     // prefer tail summary lines (e.g. "test result: ok...")
-                    for l in lines.iter().rev().take(4).rev() {
+                    for l in ring.iter().rev().take(4).rev() {
                         if l.contains("test result")
                             || l.contains(" passed")
                             || l.starts_with("ok")

@@ -116,13 +116,13 @@ impl Tool for BatchTool {
                         },
                     )?;
                     let header = format!("#{} {} ok", i + 1, call.tool);
-                    let lines: Vec<String> = rendered.text.lines().map(|l| l.to_string()).collect();
-                    if !lines.is_empty() || !child.handles.is_empty() {
+                    let has_text = !rendered.text.trim().is_empty();
+                    if has_text || !child.handles.is_empty() {
                         used_items_tokens = used_items_tokens.saturating_add(estimator::estimate_text(&header));
-                        used_items_tokens = used_items_tokens.saturating_add(estimator::estimate_lines(&lines));
+                        used_items_tokens = used_items_tokens.saturating_add(estimator::estimate_text(&rendered.text));
                         result.push(Item::new(ItemClass::High, 5.0, vec![header]));
-                        for line in lines {
-                            result.low(line);
+                        for line in rendered.text.lines() {
+                            result.low(line.to_string());
                         }
                     }
                     for h in &child.handles {

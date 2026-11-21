@@ -235,20 +235,19 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
     let paths = pathspecs(a)?;
     let mut reference = a.reference.clone();
     let mut final_paths = paths.clone();
-    if reference.is_some() && paths.is_empty() {
-        let r = reference.as_deref().unwrap_or_default();
+    if let Some(r) = reference.as_deref() {
         let verify = git(
             ctx,
             &[
                 "rev-parse",
-                "--verify",
+                "--revs-only",
                 "--quiet",
-                &format!("{r}^{{commit}}"),
+                r,
             ],
         );
-        let is_ref = matches!(verify, Ok(o) if o.exit.is_success());
+        let is_ref = matches!(verify, Ok(o) if o.exit.is_success() && !o.stdout_str().trim().is_empty());
         if !is_ref {
-            final_paths = vec![r.to_string()];
+            final_paths.insert(0, r.to_string());
             reference = None;
         }
     }
@@ -689,6 +688,10 @@ fn commit(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
         }
     } else {
         r.meta.ok = false;
+        let errs = extract_git_errors(&out);
+        for err in errs {
+            r.must(err);
+        }
     }
     let text = out.combined();
     if !text.trim().is_empty() {
@@ -736,6 +739,12 @@ fn push(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
     );
     r.meta.ok = out.exit.is_success();
     r.meta.exit = Some(out.exit);
+    if !r.meta.ok {
+        let errs = extract_git_errors(&out);
+        for err in errs {
+            r.must(err);
+        }
+    }
     let text = out.combined();
     let h = ctx.handles.put("git", text.as_bytes(), "text")?;
     r.handle(wbash_core::types::HandleRef {
@@ -786,15 +795,47 @@ fn map_git_err(err: WErr) -> WErr {
     }
 }
 
+fn extract_git_errors(out: &wbash_core::executor::ExecOutput) -> Vec<String> {
+    let mut errs = Vec::new();
+    for line in out.stderr_str().lines().chain(out.stdout_str().lines()) {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with("error:")
+            || trimmed.starts_with("fatal:")
+            || trimmed.starts_with("! [rejected]")
+            || trimmed.starts_with("CONFLICT")
+            || trimmed.contains("did not match any file")
+            || trimmed.contains("nothing to commit")
+        {
+            errs.push(trimmed.to_string());
+        }
+    }
+    if errs.is_empty() {
+        for line in out.stderr_str().lines().chain(out.stdout_str().lines()) {
+            let trimmed = line.trim();
+            if !trimmed.is_empty()
+                && !trimmed.starts_with("To ")
+                && !trimmed.starts_with("Everything up-to-date")
+            {
+                errs.push(trimmed.to_string());
+                if errs.len() >= 3 {
+                    break;
+                }
+            }
+        }
+    }
+    errs.truncate(5);
+    errs
+}
+
 fn git_failure(op: &str, out: &wbash_core::executor::ExecOutput) -> WErr {
-    let detail = out
-        .stderr_str()
-        .lines()
-        .chain(out.stdout_str().lines())
-        .find(|l| !l.trim().is_empty())
-        .unwrap_or("git failed")
-        .trim()
-        .to_string();
+    let errs = extract_git_errors(out);
+    let detail = errs
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "git failed".to_string());
     WErr::with_hint(
         "git_error",
         format!("{op}: {detail}"),
@@ -808,4 +849,41 @@ pub fn register(out: &mut Vec<std::sync::Arc<dyn Tool>>) {
 
 pub fn _paths(_: &Path) -> Option<PathBuf> {
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wbash_core::executor::ExecOutput;
+    use wbash_core::types::Exit;
+
+    #[test]
+    fn extract_git_errors_prioritizes_fatal_and_rejections() {
+        let out = ExecOutput {
+            stdout: Vec::new(),
+            stderr: b"To github.com:org/repo.git\n ! [rejected] main -> main (fetch first)\nerror: failed to push some refs\nhint: Updates were rejected\n".to_vec(),
+            exit: Exit::Code(1),
+            duration_ms: 100,
+            truncated: false,
+            timed_out: false,
+        };
+        let errs = extract_git_errors(&out);
+        assert_eq!(errs.len(), 2);
+        assert_eq!(errs[0], "! [rejected] main -> main (fetch first)");
+        assert_eq!(errs[1], "error: failed to push some refs");
+    }
+
+    #[test]
+    fn extract_git_errors_falls_back_when_no_prefixes() {
+        let out = ExecOutput {
+            stdout: Vec::new(),
+            stderr: b"remote: permission denied\nConnection closed\n".to_vec(),
+            exit: Exit::Code(1),
+            duration_ms: 100,
+            truncated: false,
+            timed_out: false,
+        };
+        let errs = extract_git_errors(&out);
+        assert_eq!(errs, vec!["remote: permission denied", "Connection closed"]);
+    }
 }

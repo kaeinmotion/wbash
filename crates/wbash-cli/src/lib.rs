@@ -389,6 +389,14 @@ fn parse_tool_args(tokens: &[String], tool: &str) -> Result<ParsedToolArgs> {
                     continue;
                 }
             }
+            if let Some(nstr) = tok.strip_prefix('-') {
+                if !nstr.is_empty() && nstr.chars().all(|c| c.is_ascii_digit()) {
+                    let n = parse_count(nstr, "-<count>")?;
+                    obj.insert("limit".into(), Value::Number((n as i64).into()));
+                    i += 1;
+                    continue;
+                }
+            }
             if tok == "-U" {
                 i += 1;
                 if i >= tokens.len() {
@@ -929,6 +937,9 @@ fn build_git_args(obj: &mut Map<String, Value>, pos: &[String]) -> Result<()> {
                     );
                 }
             }
+            if !obj.contains_key("ref") {
+                obj.insert("ref".into(), Value::String("HEAD".into()));
+            }
         }
         "log" => {
             let mut ref_seen = obj.contains_key("ref");
@@ -954,6 +965,9 @@ fn build_git_args(obj: &mut Map<String, Value>, pos: &[String]) -> Result<()> {
                         format!("git log: unsupported flag '{tok}'"),
                         "supported: -n <count>, --limit <count>",
                     ));
+                } else if !obj.contains_key("limit") && tok.chars().all(|c| c.is_ascii_digit()) {
+                    let n = parse_count(tok, "count")?;
+                    obj.insert("limit".into(), Value::Number((n as i64).into()));
                 } else if !ref_seen {
                     obj.insert("ref".into(), Value::String(tok.clone()));
                     ref_seen = true;
@@ -1283,6 +1297,27 @@ mod tests {
         let mut obj = Map::new();
         let pos = vec!["log".to_string(), "-p".to_string()];
         assert!(build_git_args(&mut obj, &pos).is_err());
+    }
+
+    #[test]
+    fn git_log_bare_number_count_is_parsed() {
+        assert_eq!(log_args(&["5"])["limit"], Value::from(5));
+        assert_eq!(log_args(&["10", "main"])["limit"], Value::from(10));
+        assert_eq!(log_args(&["10", "main"])["ref"], Value::from("main"));
+    }
+
+    #[test]
+    fn git_log_negative_number_flag_is_parsed() {
+        let (obj, _, _) = super::parse_tool_args(&["log".to_string(), "-5".to_string()], "git").unwrap();
+        assert_eq!(obj.get("limit").and_then(Value::as_i64), Some(5));
+    }
+
+    #[test]
+    fn git_show_defaults_to_head() {
+        let mut obj = Map::new();
+        let pos = vec!["show".to_string()];
+        build_git_args(&mut obj, &pos).unwrap();
+        assert_eq!(obj["ref"], Value::from("HEAD"));
     }
 
     #[test]

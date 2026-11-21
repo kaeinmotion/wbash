@@ -59,26 +59,18 @@ impl Matcher {
         match self {
             Matcher::Literal(f) => replace_literal(text, f, repl, limit),
             Matcher::Word(re) | Matcher::Regex(re) => {
-                if let Some(lim) = limit {
-                    let mut n = 0usize;
-                    let out = re
-                        .replace_all(text, |caps: &regex::Captures<'_>| {
-                            if n < lim {
-                                n += 1;
-                                expand_replacement(repl, caps)
-                            } else {
-                                caps.get(0).map(|m| m.as_str()).unwrap_or("").to_string()
-                            }
-                        })
-                        .into_owned();
-                    (out, n)
-                } else {
-                    let mut n = 0usize;
-                    for _ in re.find_iter(text) {
-                        n += 1;
-                    }
-                    (re.replace_all(text, repl).into_owned(), n)
-                }
+                let mut n = 0usize;
+                let out = re
+                    .replace_all(text, |caps: &regex::Captures<'_>| {
+                        if limit.map_or(true, |lim| n < lim) {
+                            n += 1;
+                            expand_replacement(repl, caps)
+                        } else {
+                            caps.get(0).map(|m| m.as_str()).unwrap_or("").to_string()
+                        }
+                    })
+                    .into_owned();
+                (out, n)
             }
         }
     }
