@@ -66,11 +66,23 @@ pub fn estimate_lines(lines: &[String]) -> u32 {
         non_ascii: 0,
     };
     for line in lines {
-        let l = Features::of(line);
-        f.words += l.words;
-        f.punct += l.punct;
-        f.upper += l.upper;
-        f.non_ascii += l.non_ascii;
+        let mut in_word = false;
+        for ch in line.chars() {
+            let word = ch.is_alphanumeric() || ch == '_';
+            if word && !in_word {
+                f.words += 1;
+            }
+            in_word = word;
+            if !word && !ch.is_whitespace() {
+                f.punct += 1;
+            }
+            if ch.is_uppercase() {
+                f.upper += 1;
+            }
+            if !ch.is_ascii() {
+                f.non_ascii += 1;
+            }
+        }
     }
     f.tokens()
 }

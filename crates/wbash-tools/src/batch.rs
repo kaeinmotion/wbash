@@ -94,15 +94,10 @@ impl Tool for BatchTool {
         let mut ok_count = 0usize;
         let mut err_count = 0usize;
 
+        let mut used_items_tokens = 0u32;
         for (i, call) in a.calls.iter().enumerate() {
             let remaining = n.saturating_sub(i) as u32;
-            let used = {
-                let mut t = estimator::estimate_text(&result.header);
-                for it in &result.items {
-                    t = t.saturating_add(estimator::estimate_lines(&it.lines));
-                }
-                t
-            };
+            let used = estimator::estimate_text(&result.header).saturating_add(used_items_tokens);
             let budget_left = ctx.budget.saturating_sub(used);
             let per_child = (budget_left.saturating_sub(24) / remaining.max(1)).max(48);
             match invoke_tool(ctx.registry, &call.tool, &call.args, ctx) {
@@ -123,6 +118,8 @@ impl Tool for BatchTool {
                     let header = format!("#{} {} ok", i + 1, call.tool);
                     let lines: Vec<String> = rendered.text.lines().map(|l| l.to_string()).collect();
                     if !lines.is_empty() || !child.handles.is_empty() {
+                        used_items_tokens = used_items_tokens.saturating_add(estimator::estimate_text(&header));
+                        used_items_tokens = used_items_tokens.saturating_add(estimator::estimate_lines(&lines));
                         result.push(Item::new(ItemClass::High, 5.0, vec![header]));
                         for line in lines {
                             result.low(line);
@@ -141,12 +138,16 @@ impl Tool for BatchTool {
                 }
                 Err(e) => {
                     err_count += 1;
+                    let err_hdr = format!("#{} {} error", i + 1, call.tool);
+                    let err_msg = e.render();
+                    used_items_tokens = used_items_tokens.saturating_add(estimator::estimate_text(&err_hdr));
+                    used_items_tokens = used_items_tokens.saturating_add(estimator::estimate_text(&err_msg));
                     result.push(Item::new(
                         ItemClass::MustKeep,
                         1000.0,
-                        vec![format!("#{} {} error", i + 1, call.tool)],
+                        vec![err_hdr],
                     ));
-                    result.must(e.render());
+                    result.must(err_msg);
                 }
             }
         }

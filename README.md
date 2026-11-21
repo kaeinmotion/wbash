@@ -1,57 +1,37 @@
 # w-bash
 
-execution layer for ai coding agents.
+token-efficient cli and mcp engine for ai coding agents.
 
-runs file, search, read, edit, command, test, and git tasks with less output. keeps errors, test failures, file locations, exit codes, and changed lines. use `expand ~id` for full output.
+## why
 
-## build
+raw shell and tool outputs waste context windows. w-bash filters passing noise, formats structured results, deduplicates reads, and stores full logs in handles (`~id`) to minimize token consumption.
 
-needs rust and git.
+## install
 
 ```sh
-git clone https://github.com/klynechrysler/wbash.git
+git clone https://github.com/kaeinmotion/wbash.git
 cd wbash && cargo build --release
 ```
 
-- `target/release/w`: cli
-- `target/release/w-bash`: mcp server
+- `target/release/w`: cli binary
+- `target/release/w-bash`: stdio mcp server
 
-## usage
-
-```sh
-w [--root dir] [--session id] [--format lean|json] [--budget n] [--tier read_only|write_workspace|execute|git_write] <tool> [args]
-
-w tree src --depth 2
-w search "pattern" src
-w read src/lib.rs --lines 1:60
-w edit src/lib.rs --find 'old' --replace 'new'
-w replace old new src
-w --tier execute run -- cargo test -q
-w --tier execute check --kind all
-w git status
-w --tier git_write git commit -m "message"
-w expand ~id
-```
-```
-note: you need to override the native tool calling to fully utilize wbash. kindly tell your agent to do it for u
-```
-
-use `--` before child args for `run`/`sh` when ambiguous. `run` CLI control flags: `--cwd`, `--timeout-ms`, `--stdin`, `--env`.
-
-## mcp
+## commands
 
 ```sh
-w-bash --root /path/to/project
+w tree [path] [--depth n]
+w search <pattern> [path]
+w read <path> [--lines a:b] [--outline]
+w edit <path> --find <old> --replace <new>
+w replace <old> <new> [path]
+w --tier execute run -- <command...>
+w --tier execute check [--kind all|build|lint|types|test]
+w git <status|diff|commit|push>
+w expand ~<id>
+w batch '[{"tool":"read","args":{"path":"src/main.rs"}}]'
 ```
 
-stdio server for agent clients.
-
-## config
-
-- user: `~/.config/w-bash/config.toml`
-- project: `.w-bash/config.toml` (trusted only)
-- `w config trust`
-- `w config show`
+note: you need to override the native tool calling to fully utilize wbash. kindly tell your agent to do it for u.
 
 ## license
 
