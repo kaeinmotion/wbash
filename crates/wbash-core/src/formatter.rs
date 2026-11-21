@@ -101,17 +101,16 @@ pub fn render_lean(result: &ToolResult, opts: RenderOptions<'_>) -> Result<Rende
         out.push("# budget_exceeded_must_keep".to_string());
     }
 
-    let mut dropped_lines: Vec<String> = Vec::new();
+    let mut dropped_lines_count = 0usize;
     let mut gaps: Vec<(usize, usize)> = Vec::new(); // (index in out, count)
 
     let mut body_from_items = false;
     for (idx, item) in result.items.iter().enumerate() {
         if included[idx] || item.class == ItemClass::MustKeep {
-            if !dropped_lines.is_empty() {
-                let n = dropped_lines.len();
-                gaps.push((out.len(), n));
+            if dropped_lines_count > 0 {
+                gaps.push((out.len(), dropped_lines_count));
                 out.push(String::new());
-                dropped_lines.clear();
+                dropped_lines_count = 0;
             }
             for line in &item.lines {
                 let (red, n) = opts.redactor.redact(line);
@@ -120,21 +119,21 @@ pub fn render_lean(result: &ToolResult, opts: RenderOptions<'_>) -> Result<Rende
             }
             body_from_items = true;
         } else {
-            dropped_lines.extend(item.lines.iter().cloned());
+            dropped_lines_count += item.lines.len();
         }
     }
-    if !dropped_lines.is_empty() {
-        let n = dropped_lines.len();
-        gaps.push((out.len(), n));
+    if dropped_lines_count > 0 {
+        gaps.push((out.len(), dropped_lines_count));
         out.push(String::new());
-        dropped_lines.clear();
     }
 
     if !gaps.is_empty() {
-        let mut all_dropped: Vec<String> = Vec::new();
+        let mut all_dropped: Vec<&str> = Vec::new();
         for (idx, item) in result.items.iter().enumerate() {
             if !(included[idx] || item.class == ItemClass::MustKeep) {
-                all_dropped.extend(item.lines.iter().cloned());
+                for l in &item.lines {
+                    all_dropped.push(l.as_str());
+                }
             }
         }
         let joined = all_dropped.join("\n");
