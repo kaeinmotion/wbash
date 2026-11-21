@@ -1,6 +1,6 @@
 # w-bash
 
-cli and mcp tools for ai coding agents.
+execution layer for ai coding agents.
 
 runs file, search, read, edit, command, test, and git tasks with less output. keeps errors, test failures, file locations, exit codes, and changed lines. use `expand ~id` for full output.
 
