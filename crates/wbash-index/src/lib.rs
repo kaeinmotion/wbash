@@ -825,6 +825,9 @@ impl SymbolIndex {
         }
         let syms = ts_outline(lang, source);
         if let Ok(mut guard) = self.cache.lock() {
+            if guard.len() >= 2000 {
+                guard.clear();
+            }
             guard.insert(key, syms.clone());
         }
         Outline {

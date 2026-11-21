@@ -621,26 +621,30 @@ fn scan_lines(
     }
 }
 
+const DEFN_PREFIXES: &[&str] = &[
+    "fn ", "pub fn ", "async fn ", "pub async fn ",
+    "def ", "class ", "struct ", "pub struct ",
+    "enum ", "pub enum ", "trait ", "pub trait ",
+    "impl ", "interface ", "pub interface ",
+    "func ", "type ", "pub type ", "const ", "export ",
+];
+
 fn looks_like_definition(line: &str) -> bool {
     let t = line.trim_start();
-    [
-        "fn ",
-        "pub fn ",
-        "async fn ",
-        "def ",
-        "class ",
-        "struct ",
-        "enum ",
-        "trait ",
-        "impl ",
-        "interface ",
-        "func ",
-        "type ",
-        "const ",
-        "export ",
-    ]
-    .iter()
-    .any(|p| t.starts_with(p) || t.contains(&format!(" {p}")))
+    for &p in DEFN_PREFIXES {
+        if t.starts_with(p) {
+            return true;
+        }
+    }
+    // Check embedded keyword without allocating Strings per keyword per line
+    for &p in DEFN_PREFIXES {
+        if let Some(pos) = t.find(p) {
+            if pos > 0 && t.as_bytes()[pos - 1] == b' ' {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn path_boost_lc(rel_lc: &str, pat_lc: &str) -> i32 {
