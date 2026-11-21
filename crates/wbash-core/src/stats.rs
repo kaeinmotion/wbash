@@ -46,38 +46,53 @@ pub fn day_file(ts_ms: i64) -> PathBuf {
     stats_dir().join(format!("{y:04}-{m:02}-{d:02}.jsonl"))
 }
 
-fn with_stats_lock<T>(f: impl FnOnce() -> T) -> T {
+/// Runs `f` under an exclusive, non-blocking file lock on `.stats.lock`.
+/// Stats writes are fire-and-forget, so dropping a write on lock contention or failure
+/// is acceptable and avoids uncoordinated writes or file corruption.
+fn with_stats_lock<T: Default>(f: impl FnOnce() -> T) -> T {
     let dir = stats_dir();
     if paths::ensure_private_dir(&dir).is_err() {
-        return f();
+        return T::default();
     }
     let lock_path = dir.join(".stats.lock");
-    if let Ok(lock_file) = std::fs::OpenOptions::new()
+    let lock_file = match std::fs::OpenOptions::new()
         .create(true)
         .read(true)
         .write(true)
         .truncate(false)
         .open(&lock_path)
     {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = lock_file.set_permissions(std::fs::Permissions::from_mode(0o600));
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::io::AsRawFd;
-            let rc = unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_EX) };
-            if rc == 0 {
-                let out = f();
-                unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_UN) };
-                return out;
-            }
-        }
+        Ok(f) => f,
+        Err(_) => return T::default(),
+    };
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = lock_file.set_permissions(std::fs::Permissions::from_mode(0o600));
     }
-    f()
+    #[cfg(unix)]
+    {
+        use std::os::unix::io::AsRawFd;
+        let fd = lock_file.as_raw_fd();
+        let rc = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
+        if rc != 0 {
+            return T::default(); // lock busy — skip this write
+        }
+        let out = f();
+        unsafe {
+            libc::flock(fd, libc::LOCK_UN);
+        }
+        out
+    }
+    #[cfg(not(unix))]
+    {
+        f()
+    }
 }
 
+/// Records a stats entry. Fire-and-forget: if the lock cannot be acquired
+/// due to contention, the write is dropped silently to prevent blocking or corruption.
 pub fn record(config: &Config, entry: &StatsEntry) {
     if !config.telemetry.local_stats {
         return;
@@ -224,4 +239,45 @@ pub fn discover(since_ms: Option<i64>) -> DiscoverSummary {
         *s.per_tool.entry(e.tool).or_insert(0) += 1;
     }
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_with_stats_lock_contention_drops_write() {
+        let dir = stats_dir();
+        let _ = paths::ensure_private_dir(&dir);
+        let lock_path = dir.join(".stats.lock");
+        let lock_file = std::fs::OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(&lock_path)
+            .unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::io::AsRawFd;
+            let fd = lock_file.as_raw_fd();
+            let rc = unsafe { libc::flock(fd, libc::LOCK_EX) };
+            assert_eq!(rc, 0);
+
+            // While the lock is held exclusively, with_stats_lock should fail non-blocking
+            // and return Default without executing the closure.
+            let mut called = false;
+            let result: bool = with_stats_lock(|| {
+                called = true;
+                true
+            });
+            assert!(!called, "closure should not be called under lock contention");
+            assert!(!result, "should return Default on lock contention");
+
+            unsafe {
+                libc::flock(fd, libc::LOCK_UN);
+            }
+        }
+    }
 }
