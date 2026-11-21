@@ -9,3 +9,4 @@ bench/__pycache__/
 
 /.opencode/
 /.gemini/
+/.pytest_cache/
