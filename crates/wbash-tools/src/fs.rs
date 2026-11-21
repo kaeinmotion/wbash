@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -457,7 +458,7 @@ impl Tool for ReadTool {
                 let line = format!("{i}: {}", lines[i - 1]);
                 raw.push_str(&line);
                 raw.push('\n');
-                r.low(line);
+                r.push(Item::new(ItemClass::MustKeep, 1.0, vec![line]));
             }
             r.raw_text = Some(raw);
             r.meta.counts.insert("lines".into(), count as i64);
@@ -755,6 +756,7 @@ impl Tool for EditTool {
     }
     fn description(&self) -> &'static str {
         "Exact literal edit, line splice, create or delete; atomic write."
+
     }
     fn min_tier(&self) -> Tier {
         Tier::WriteWorkspace
@@ -777,7 +779,7 @@ impl Tool for EditTool {
                 "content": {"type": "string"},
                 "overwrite": {"type": "boolean", "default": false},
                 "delete": {"type": "boolean"},
-                "expect_hash": {"type": "string"}
+                "expect_hash": {"type": "string"},
             },
             "required": ["path"],
             "additionalProperties": false
@@ -792,8 +794,44 @@ impl Tool for EditTool {
         let abs = ctx.resolve(&a.path, false)?;
         let display = ctx.rel(&abs);
 
+        let mut find = a.find.clone();
+        if let Some(f) = find.as_deref() {
+            if f == "-" {
+                let mut s = String::new();
+                std::io::stdin().read_to_string(&mut s).map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
+                find = Some(s);
+            } else if let Some(path) = f.strip_prefix('@') {
+                let p = ctx.resolve(path, true)?;
+                find = Some(std::fs::read_to_string(&p).map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?);
+            }
+        }
+
+        let mut replace = a.replace.clone();
+        if let Some(r) = replace.as_deref() {
+            if r == "-" {
+                let mut s = String::new();
+                std::io::stdin().read_to_string(&mut s).map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
+                replace = Some(s);
+            } else if let Some(path) = r.strip_prefix('@') {
+                let p = ctx.resolve(path, true)?;
+                replace = Some(std::fs::read_to_string(&p).map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?);
+            }
+        }
+
+        let mut content = a.content.clone();
+        if let Some(c) = content.as_deref() {
+            if c == "-" {
+                let mut s = String::new();
+                std::io::stdin().read_to_string(&mut s).map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
+                content = Some(s);
+            } else if let Some(path) = c.strip_prefix('@') {
+                let p = ctx.resolve(path, true)?;
+                content = Some(std::fs::read_to_string(&p).map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?);
+            }
+        }
+
         let modes = [
-            a.find.is_some(),
+            find.is_some(),
             a.lines.is_some(),
             a.create.unwrap_or(false),
             a.delete.unwrap_or(false),
@@ -840,8 +878,8 @@ impl Tool for EditTool {
         }
 
         if a.create.unwrap_or(false) {
-            let content = a.content.clone().ok_or_else(|| {
-                WErr::invalid_args("create requires content", "content=<file text>")
+            let content = content.clone().ok_or_else(|| {
+                WErr::invalid_args("create requires content", "content=<file text> or content_file=<path>")
             })?;
             if abs.exists() && !a.overwrite.unwrap_or(false) {
                 return Err(WErr::with_hint(
@@ -861,7 +899,7 @@ impl Tool for EditTool {
             );
             r.meta.counts.insert("created".into(), 1);
             r.meta.notes.push(format!("hash {short}"));
-            post_check(&mut r, ctx, &abs, &content)?;
+            post_check(&mut r, ctx, &abs, "", &content)?;
             return Ok(r);
         }
 
@@ -893,8 +931,8 @@ impl Tool for EditTool {
             }
         }
 
-        let replace = a.replace.clone().unwrap_or_default();
-        let (new, ins, del) = if let Some(find) = &a.find {
+        let replace = replace.unwrap_or_default();
+        let (new, ins, del) = if let Some(find) = &find {
             if find.is_empty() {
                 return Err(WErr::invalid_args(
                     "find must not be empty",
@@ -904,7 +942,7 @@ impl Tool for EditTool {
             if a.replace.is_none() {
                 return Err(WErr::invalid_args(
                     "find requires replace",
-                    "replace=<new text>",
+                    "replace=<new text> (supports - for stdin or @path)",
                 ));
             }
             let mut it = old.match_indices(find.as_str()).map(|(i, _)| i);
@@ -1032,7 +1070,7 @@ impl Tool for EditTool {
         let mut r = ToolResult::new("edit", header);
         r.meta.counts.insert("inserted".into(), ins as i64);
         r.meta.counts.insert("deleted".into(), del as i64);
-        post_check(&mut r, ctx, &abs, &new)?;
+        post_check(&mut r, ctx, &abs, &old, &new)?;
         Ok(r)
     }
 }
@@ -1041,19 +1079,32 @@ fn post_check(
     r: &mut ToolResult,
     ctx: &mut ToolContext<'_>,
     abs: &Path,
-    content: &str,
+    old_content: &str,
+    new_content: &str,
 ) -> Result<()> {
     if !ctx.config.edit.post_check {
         return Ok(());
     }
-    let errors = wbash_index::syntax_errors(abs, content);
-    if errors.is_empty() {
+    let new_errors = wbash_index::syntax_errors(abs, new_content);
+    if new_errors.is_empty() {
+        return Ok(());
+    }
+    let old_errors = if old_content.is_empty() {
+        Vec::new()
+    } else {
+        wbash_index::syntax_errors(abs, old_content)
+    };
+    let introduced: Vec<_> = new_errors
+        .into_iter()
+        .filter(|ne| !old_errors.iter().any(|oe| oe.message == ne.message && oe.col == ne.col))
+        .collect();
+    if introduced.is_empty() {
         return Ok(());
     }
     r.header
-        .push_str(&format!("; {} syntax errors", errors.len()));
+        .push_str(&format!("; {} syntax errors", introduced.len()));
     r.meta.ok = false;
-    for e in &errors {
+    for e in &introduced {
         r.diag(Diagnostic {
             file: ctx.rel(abs),
             line: e.line as u32,
@@ -1065,7 +1116,7 @@ fn post_check(
         });
     }
     let mut lines = Vec::new();
-    for e in &errors {
+    for e in &introduced {
         lines.push(format!(
             "{}:{}:{} error {}",
             ctx.rel(abs),

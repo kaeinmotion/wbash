@@ -14,9 +14,10 @@ pub struct CommonArgs {
 /// Per-tool default budgets (spec §5.2).
 pub fn default_budget(tool: &str) -> u32 {
     match tool {
-        "run" | "check" | "sh" => 800,
-        "batch" => 1600,
-        _ => 600,
+        "read" => 4000,
+        "run" | "check" | "sh" => 1200,
+        "batch" => 4000,
+        _ => 1200,
     }
 }
 
