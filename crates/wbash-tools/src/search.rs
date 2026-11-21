@@ -666,3 +666,20 @@ fn path_boost_lc(rel_lc: &str, pat_lc: &str) -> i32 {
 pub fn register(out: &mut Vec<std::sync::Arc<dyn Tool>>) {
     out.push(std::sync::Arc::new(SearchTool));
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_looks_like_definition() {
+        assert!(looks_like_definition("fn foo() {}"));
+        assert!(looks_like_definition("pub fn bar() {}"));
+        assert!(looks_like_definition("    pub async fn baz() {}"));
+        assert!(looks_like_definition("struct MyStruct;"));
+        assert!(looks_like_definition("export class TestClass"));
+        assert!(looks_like_definition("something export const X = 1;"));
+        assert!(!looks_like_definition("let x = fn_call();"));
+        assert!(!looks_like_definition("println!(\"definitely not\");"));
+    }
+}

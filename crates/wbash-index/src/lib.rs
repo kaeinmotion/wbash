@@ -1269,4 +1269,15 @@ mod tests {
         assert!(!is_binary(b"caf\xC3\x28"));
         assert!(!is_binary(b"\xE9mid"));
     }
+
+    #[test]
+    fn test_symbol_index_cache_cap() {
+        let index = crate::SymbolIndex::new();
+        let dummy_path = std::path::Path::new("dummy.rs");
+        for i in 0..2500 {
+            index.symbols_cached(dummy_path, "fn foo() {}", i, 10);
+        }
+        let guard = index.cache.lock().unwrap();
+        assert!(guard.len() <= 2000);
+    }
 }
