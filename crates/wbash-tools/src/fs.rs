@@ -908,14 +908,7 @@ impl Tool for EditTool {
                 ));
             }
             let mut it = old.match_indices(find.as_str()).map(|(i, _)| i);
-            match it.next() {
-                None => {
-                    return Err(WErr::with_hint(
-                        "anchor_not_found",
-                        format!("anchor not found in {display}"),
-                        format!("try: w read path={display} lines=1:80"),
-                    ))
-                }
+            let pos = match it.next() {
                 Some(pos) => {
                     if let Some(second) = it.next() {
                         let mut positions = vec![pos, second];
@@ -942,15 +935,31 @@ impl Tool for EditTool {
                             format!("try: w read path={display} lines=<start>:<end>"),
                         ));
                     }
-                    let mut new = String::with_capacity(old.len() + replace.len());
-                    new.push_str(&old[..pos]);
-                    new.push_str(&replace);
-                    new.push_str(&old[pos + find.len()..]);
-                    let ins = replace.lines().count().max(1);
-                    let del = find.lines().count().max(1);
-                    (new, ins, del)
+                    pos
                 }
-            }
+                None => {
+                    // Helpful hint if whitespace or line endings differ
+                    let hint = if (find.contains("\r\n") != old.contains("\r\n"))
+                        || (find.contains('\t') != old.contains('\t'))
+                    {
+                        format!("try: anchor may differ in indentation or line endings (CRLF vs LF); check with `w read path={display}`")
+                    } else {
+                        format!("try: w read path={display} lines=1:80")
+                    };
+                    return Err(WErr::with_hint(
+                        "anchor_not_found",
+                        format!("anchor not found in {display}"),
+                        hint,
+                    ));
+                }
+            };
+            let mut new = String::with_capacity(old.len() + replace.len());
+            new.push_str(&old[..pos]);
+            new.push_str(&replace);
+            new.push_str(&old[pos + find.len()..]);
+            let ins = replace.lines().count().max(1);
+            let del = find.lines().count().max(1);
+            (new, ins, del)
         } else {
             let spec = a.lines.as_ref().unwrap();
             let line_count = old.lines().count();
@@ -1136,11 +1145,8 @@ impl Tool for ExpandTool {
             "expand",
             "pass ref plus optional grep, lines, head, tail, offset",
         )?;
-        let id = if a.reference.starts_with('~') {
-            a.reference.clone()
-        } else {
-            format!("~{}", a.reference)
-        };
+        let clean_ref = a.reference.trim_start_matches('~');
+        let id = format!("~{clean_ref}");
         let (bytes, rec) = ctx.handles.get(&id)?;
         if rec.content_type == "bytes" {
             let mut r = ToolResult::new(
