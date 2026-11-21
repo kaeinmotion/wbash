@@ -32,6 +32,9 @@ w git status
 w --tier git_write git commit -m "message"
 w expand ~id
 ```
+```
+note: you need to override the native tool calling to fully utilize wbash. kindly tell your agent to do it for u
+```
 
 use `--` before child args for `run`/`sh` when ambiguous. `run` CLI control flags: `--cwd`, `--timeout-ms`, `--stdin`, `--env`.
 
