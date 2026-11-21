@@ -1154,10 +1154,10 @@ impl Tool for ExpandTool {
             r.meta.counts.insert("bytes".into(), rec.bytes as i64);
             return Ok(r);
         }
-        let text = String::from_utf8_lossy(&bytes).into_owned();
-        let all: Vec<&str> = text.lines().collect();
+        let text_cow = String::from_utf8_lossy(&bytes);
+        let all: Vec<&str> = text_cow.lines().collect();
         let total = all.len();
-        let mut selected: Vec<String> = Vec::new();
+        let mut selected: Vec<&str> = Vec::new();
         if let Some(pattern) = &a.grep {
             let re = regex::Regex::new(pattern).map_err(|e| {
                 WErr::invalid_args(
@@ -1170,13 +1170,13 @@ impl Tool for ExpandTool {
                 for (idx, line) in all.iter().enumerate() {
                     let n = idx + 1;
                     if n >= start && n <= end && re.is_match(line) {
-                        selected.push((*line).to_string());
+                        selected.push(*line);
                     }
                 }
             } else {
                 for line in &all {
                     if re.is_match(line) {
-                        selected.push((*line).to_string());
+                        selected.push(*line);
                     }
                 }
             }
@@ -1185,13 +1185,12 @@ impl Tool for ExpandTool {
             for (idx, line) in all.iter().enumerate() {
                 let n = idx + 1;
                 if n >= start && n <= end {
-                    selected.push((*line).to_string());
+                    selected.push(*line);
                 }
             }
         } else {
-            selected = all.iter().map(|s| (*s).to_string()).collect();
+            selected = all;
         }
-        let mut selected: Vec<String> = selected;
         if let Some(head) = a.head {
             selected.truncate(head as usize);
         }
@@ -1322,7 +1321,7 @@ impl Tool for ExpandTool {
             }
         } else {
             for line in &selected {
-                r.must(line.clone());
+                r.must((*line).to_string());
             }
         }
         if remaining > 0 && !a.all {
