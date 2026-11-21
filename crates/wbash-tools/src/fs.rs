@@ -82,12 +82,11 @@ impl Tool for TreeTool {
                 continue;
             }
             let rel = if base_rel == "." {
-                f.rel.clone()
+                f.rel.as_str()
+            } else if let Some(stripped) = f.rel.strip_prefix(&format!("{base_rel}/")) {
+                stripped
             } else {
-                f.rel
-                    .strip_prefix(&format!("{base_rel}/"))
-                    .unwrap_or(&f.rel)
-                    .to_string()
+                f.rel.as_str()
             };
             if rel.is_empty() {
                 continue;
@@ -198,7 +197,7 @@ fn render_tree(
         }
     }
     let mut files = node.files.clone();
-    files.sort();
+    files.sort_unstable_by(|a, b| a.0.cmp(&b.0));
     const INLINE_MAX: usize = 40;
     if files.len() > INLINE_MAX {
         let label = if sizes {
@@ -249,7 +248,7 @@ fn collect_tree_lines(node: &DirNode, indent: &str, sizes: bool, out: &mut Vec<S
         collect_tree_lines(child, &format!("{indent}  "), sizes, out);
     }
     let mut files = node.files.clone();
-    files.sort();
+    files.sort_unstable_by(|a, b| a.0.cmp(&b.0));
     for (name, size) in &files {
         if sizes {
             out.push(format!("{indent}{name} ({})", human_size(*size)));
@@ -584,13 +583,24 @@ impl Tool for ReadTool {
         if let Some(prev) = &previous {
             if let Some(snap) = &prev.snapshot_ref {
                 if let Ok((bytes, _)) = ctx.handles.get(snap) {
-                    let old = String::from_utf8_lossy(&bytes).into_owned();
-                    let diff_lines = render_diff(&old, &text);
-                    if wbash_core::estimator::estimate_lines(&diff_lines) < full_text_est {
-                        used_diff = true;
-                        r.header = format!("{display} diff ({short})");
-                        for line in diff_lines {
-                            r.push(Item::new(ItemClass::High, 6.0, vec![line]));
+                    if let Ok(old) = std::str::from_utf8(&bytes) {
+                        let diff_lines = render_diff(old, &text);
+                        if wbash_core::estimator::estimate_lines(&diff_lines) < full_text_est {
+                            used_diff = true;
+                            r.header = format!("{display} diff ({short})");
+                            for line in diff_lines {
+                                r.push(Item::new(ItemClass::High, 6.0, vec![line]));
+                            }
+                        }
+                    } else {
+                        let old = String::from_utf8_lossy(&bytes);
+                        let diff_lines = render_diff(&old, &text);
+                        if wbash_core::estimator::estimate_lines(&diff_lines) < full_text_est {
+                            used_diff = true;
+                            r.header = format!("{display} diff ({short})");
+                            for line in diff_lines {
+                                r.push(Item::new(ItemClass::High, 6.0, vec![line]));
+                            }
                         }
                     }
                 }
