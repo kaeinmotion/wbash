@@ -1,5 +1,7 @@
 use std::collections::BTreeSet;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -11,6 +13,15 @@ use wbash_core::types::{Diagnostic, Severity, TestResult, Tier, ToolResult};
 
 use crate::run::execute_with_parsers;
 use crate::util;
+
+/// Session-scoped cache of detected commands keyed by (project_root, kind).
+/// Re-detecting on every `check` call costs 6–10 syscalls; this avoids them.
+static DETECT_CACHE: OnceLock<Mutex<HashMap<(PathBuf, String), Vec<(String, Vec<String>)>>>> =
+    OnceLock::new();
+
+fn detect_cache() -> &'static Mutex<HashMap<(PathBuf, String), Vec<(String, Vec<String>)>>> {
+    DETECT_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
 
 pub struct CheckTool;
 
@@ -69,7 +80,20 @@ impl Tool for CheckTool {
             target.parent().unwrap_or(ctx.root).to_path_buf()
         };
         let project = detect_root(ctx.root, &base).unwrap_or_else(|| base.clone());
-        let mut commands = detect_commands(&project, &a.kind)?;
+        let cache_key = (project.clone(), a.kind.clone());
+        let mut commands = {
+            let cached = detect_cache().lock().ok()
+                .and_then(|g| g.get(&cache_key).cloned());
+            if let Some(cmds) = cached {
+                cmds
+            } else {
+                let cmds = detect_commands(&project, &a.kind)?;
+                if let Ok(mut g) = detect_cache().lock() {
+                    g.insert(cache_key, cmds.clone());
+                }
+                cmds
+            }
+        };
         commands.dedup();
         if commands.is_empty() {
             return Err(WErr::with_hint(

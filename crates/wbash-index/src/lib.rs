@@ -490,14 +490,23 @@ impl Workspace {
     }
 }
 
+use std::cell::Cell;
+thread_local! {
+    static WRITE_COUNTER: Cell<u64> = Cell::new(0);
+}
+fn next_nonce() -> u64 {
+    WRITE_COUNTER.with(|c| {
+        let v = c.get();
+        c.set(v.wrapping_add(1));
+        v
+    })
+}
+
 fn write_atomic_best_effort(path: &Path, bytes: &[u8]) {
     let Some(parent) = path.parent() else {
         return;
     };
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
+    let nonce = next_nonce();
     let tmp = parent.join(format!(
         ".{}.wbash-tmp-{}-{nonce}",
         path.file_name()

@@ -44,20 +44,25 @@ impl Redactor {
     }
 
     /// Returns redacted text and the number of substitutions.
+    /// Single-pass per pattern: one scan, one allocation only when a match is found.
     pub fn redact(&self, text: &str) -> (String, u32) {
         if !self.enabled {
             return (text.to_string(), 0);
         }
         let mut out = text.to_string();
-        let mut count = 0u32;
+        let mut total = 0u32;
         for re in &self.patterns {
-            let matches = re.find_iter(&out).count() as u32;
-            if matches > 0 {
-                out = re.replace_all(&out, "[REDACTED]").into_owned();
-                count += matches;
+            let mut count = 0u32;
+            let replaced = re.replace_all(&out, |_caps: &regex::Captures| {
+                count += 1;
+                "[REDACTED]"
+            });
+            if count > 0 {
+                out = replaced.into_owned();
+                total += count;
             }
         }
-        (out, count)
+        (out, total)
     }
 
     /// Secret-looking environment variable names are stripped from child envs.
