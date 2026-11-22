@@ -178,6 +178,95 @@ pub fn split_shell_tokens(cmd: &str) -> Vec<String> {
     tokens
 }
 
+/// Flexible u32 deserializer accepting an integer or string (e.g. "2" or 2).
+pub fn deserialize_u32_lenient<'de, D>(deserializer: D) -> std::result::Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct U32Visitor;
+
+    impl<'de> serde::de::Visitor<'de> for U32Visitor {
+        type Value = u32;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("an integer or string representing an integer")
+        }
+
+        fn visit_u64<E>(self, v: u64) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(v as u32)
+        }
+
+        fn visit_i64<E>(self, v: i64) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(v.max(0) as u32)
+        }
+
+        fn visit_str<E>(self, s: &str) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            s.parse::<u32>().map_err(serde::de::Error::custom)
+        }
+    }
+
+    deserializer.deserialize_any(U32Visitor)
+}
+
+/// Flexible Option<u32> deserializer accepting an integer, string, or null.
+pub fn deserialize_u32_opt_lenient<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<u32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct OptU32Visitor;
+
+    impl<'de> serde::de::Visitor<'de> for OptU32Visitor {
+        type Value = Option<u32>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("an integer, string representing an integer, or null")
+        }
+
+        fn visit_none<E>(self) -> std::result::Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> std::result::Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_some<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            deserializer.deserialize_any(OptU32Visitor)
+        }
+
+        fn visit_u64<E>(self, v: u64) -> std::result::Result<Self::Value, E> {
+            Ok(Some(v as u32))
+        }
+
+        fn visit_i64<E>(self, v: i64) -> std::result::Result<Self::Value, E> {
+            Ok(Some(v.max(0) as u32))
+        }
+
+        fn visit_str<E>(self, s: &str) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            s.parse::<u32>().map(Some).map_err(serde::de::Error::custom)
+        }
+    }
+
+    deserializer.deserialize_option(OptU32Visitor)
+}
+
 /// Flexible argv deserializer for tool args.
 /// Accepts either an array of strings (`["cargo", "test"]`) or a single command string (`"cargo test"`).
 pub fn deserialize_argv<'de, D>(deserializer: D) -> std::result::Result<Vec<String>, D::Error>

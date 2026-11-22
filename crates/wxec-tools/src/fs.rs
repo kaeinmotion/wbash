@@ -27,7 +27,12 @@ pub struct TreeTool;
 struct TreeArgs {
     #[serde(default = "dot", alias = "dir", alias = "directory", alias = "folder")]
     path: String,
-    #[serde(default = "two", alias = "max_depth", alias = "level")]
+    #[serde(
+        default = "two",
+        deserialize_with = "wxec_core::args::deserialize_u32_lenient",
+        alias = "max_depth",
+        alias = "level"
+    )]
     depth: u32,
     #[serde(alias = "pattern")]
     glob: Option<String>,
@@ -1368,6 +1373,7 @@ pub struct ExpandTool;
 struct ExpandArgs {
     #[serde(rename = "ref", alias = "id", alias = "handle", alias = "handle_id")]
     reference: String,
+    #[serde(alias = "pattern", alias = "query", alias = "filter")]
     grep: Option<String>,
     #[serde(
         default,

@@ -24,11 +24,22 @@ struct SearchArgs {
     #[serde(default, alias = "files")]
     paths: Vec<String>,
     glob: Option<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "wxec_core::args::deserialize_u32_lenient"
+    )]
     context: u32,
+    #[serde(
+        default,
+        deserialize_with = "wxec_core::args::deserialize_u32_opt_lenient"
+    )]
     limit: Option<u32>,
     #[serde(default)]
     stats: bool,
+    #[serde(default, alias = "ignore_case", alias = "case_insensitive")]
+    case_insensitive: bool,
+    #[serde(default)]
+    case_sensitive: Option<bool>,
 }
 
 fn text() -> String {
@@ -82,7 +93,8 @@ impl Tool for SearchTool {
                 "glob": {"type": "string"},
                 "context": {"type": "integer", "minimum": 0, "maximum": 20, "default": 0},
                 "limit": {"type": "integer", "minimum": 1},
-                "stats": {"type": "boolean", "default": false}
+                "stats": {"type": "boolean", "default": false},
+                "case_insensitive": {"type": "boolean"}
             },
             "required": ["pattern"],
             "additionalProperties": false
@@ -168,13 +180,31 @@ impl Tool for SearchTool {
             return Ok(r);
         }
         let gs = util::globset(a.glob.as_deref())?;
+        let is_case_insensitive = a.case_insensitive || a.case_sensitive == Some(false);
         let regex = if a.mode == "regex" {
-            Some(regex::Regex::new(&a.pattern).map_err(|e| {
-                WErr::invalid_args(
-                    format!("invalid regex '{}': {e}", a.pattern),
-                    "check escaping or use mode=text",
-                )
-            })?)
+            Some(
+                regex::RegexBuilder::new(&a.pattern)
+                    .case_insensitive(is_case_insensitive)
+                    .build()
+                    .map_err(|e| {
+                        WErr::invalid_args(
+                            format!("invalid regex '{}': {e}", a.pattern),
+                            "check escaping or use mode=text",
+                        )
+                    })?,
+            )
+        } else if is_case_insensitive {
+            Some(
+                regex::RegexBuilder::new(&regex::escape(&a.pattern))
+                    .case_insensitive(true)
+                    .build()
+                    .map_err(|e| {
+                        WErr::invalid_args(
+                            format!("invalid pattern '{}': {e}", a.pattern),
+                            "use mode=text",
+                        )
+                    })?,
+            )
         } else {
             None
         };

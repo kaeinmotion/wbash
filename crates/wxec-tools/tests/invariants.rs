@@ -530,4 +530,26 @@ fn test_ergonomic_tool_features() {
         }),
     );
     assert!(batch_call.ok, "{}", batch_call.text);
+
+    // 19. string-encoded numeric arguments in tree and search
+    let tree_str_depth = call(&mut d, "tree", json!({"depth": "2"}));
+    assert!(tree_str_depth.ok, "{}", tree_str_depth.text);
+
+    let search_ci = call(
+        &mut d,
+        "search",
+        json!({"pattern": "OVERWRITTEN", "case_insensitive": true}),
+    );
+    assert!(search_ci.ok, "{}", search_ci.text);
+    assert!(search_ci.text.contains("crlf.txt"));
+
+    // 20. replace with pattern and to aliases
+    let replace_alias = call(
+        &mut d,
+        "replace",
+        json!({"pattern": "overwritten", "to": "custom_replaced", "path": "crlf.txt"}),
+    );
+    assert!(replace_alias.ok, "{}", replace_alias.text);
+    let verify_replace = call(&mut d, "read", json!({"path": "crlf.txt"}));
+    assert!(verify_replace.text.contains("custom_replaced"));
 }

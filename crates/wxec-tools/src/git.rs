@@ -85,15 +85,12 @@ impl Tool for GitTool {
         json!({
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["status", "add", "diff", "log", "show", "blame", "branch", "commit", "push", "pull", "tag", "tags", "remote", "remotes"]},
+                "op": {"type": "string", "enum": ["status", "add", "diff", "log", "show", "blame", "branch", "commit", "push", "pull", "tag", "remote"]},
                 "pathspec": {"type": ["string", "array"]},
                 "staged": {"type": "boolean"},
-                "cached": {"type": "boolean"},
                 "stat": {"type": "boolean"},
                 "name_only": {"type": "boolean"},
-                "name_status": {"type": "boolean"},
                 "numstat": {"type": "boolean"},
-                "shortstat": {"type": "boolean"},
                 "context": {"type": "integer"},
                 "limit": {"type": "integer"},
                 "ref": {"type": "string"},
