@@ -1,16 +1,16 @@
 [workspace]
 resolver = "2"
-members = ["crates/wbash-core", "crates/wbash-index", "crates/wbash-parsers", "crates/wbash-tools", "crates/wbash-adapters", "crates/wbash-cli"]
+members = ["crates/wxec-core", "crates/wxec-index", "crates/wxec-parsers", "crates/wxec-tools", "crates/wxec-adapters", "crates/wxec-cli"]
 exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.2.4"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/KlyneChrysler/wbash"
-homepage = "https://github.com/KlyneChrysler/wbash"
+repository = "https://github.com/KlyneChrysler/wxec"
+homepage = "https://github.com/KlyneChrysler/wxec"
 readme = "README.md"
-authors = ["w-bash contributors"]
+authors = ["wxec contributors"]
 description = "token-efficient cli and mcp tools for ai coding agents"
 keywords = ["ai", "cli", "mcp", "coding-agent", "developer-tools"]
 categories = ["command-line-utilities", "development-tools"]

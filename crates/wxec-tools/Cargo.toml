@@ -1,0 +1,23 @@
+[package]
+name = "wxec-tools"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Workspace, execution, and git tool implementations for AI agents"
+repository.workspace = true
+readme.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+wxec-core = { path = "../wxec-core" }
+wxec-index = { path = "../wxec-index" }
+wxec-parsers = { path = "../wxec-parsers" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+globset = { workspace = true }
+similar = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

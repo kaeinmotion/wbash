@@ -27,14 +27,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release -p wbash-cli
+      - run: cargo build --release -p wxec-cli
       - name: package
         shell: bash
         run: |
           ver="${GITHUB_REF_NAME:-v0.1.0}"
-          name="w-bash-${ver}-${{ matrix.target }}"
+          name="wxec-${ver}-${{ matrix.target }}"
           mkdir -p dist/$name
-          cp target/release/w target/release/w-bash dist/$name/
+          cp target/release/w target/release/wxec dist/$name/
           cp README.md LICENSE dist/$name/ || true
           tar -C dist -czf dist/$name.tar.gz $name
           (cd dist && shasum -a 256 $name.tar.gz > $name.tar.gz.sha256 || sha256sum $name.tar.gz > $name.tar.gz.sha256)

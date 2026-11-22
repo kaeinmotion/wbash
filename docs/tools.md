@@ -47,7 +47,7 @@ JSON schemas are generated from the same argument structs and exposed over MCP
   by default; replaces all matches in scope. Returns per-file match counts;
   `--verbosity verbose` emits diff lines (budget-fitted). Writes are atomic per file.
 - `run`: `argv=[...]` (no shell), `cwd="."`, `timeout_ms`, `stdin`, `env`
-  (allowlisted keys only). CLI parses only wbash control flags for `run`
+  (allowlisted keys only). CLI parses only wxec control flags for `run`
   (`cwd`, `timeout_ms`, `stdin`, `env`); pass child flags after `--` when
   ambiguous. Parsers consume injected/machine streams when used, while rendered
   tails/`raw_text`/`full` handles use user-relevant output with injected
@@ -70,7 +70,7 @@ JSON schemas are generated from the same argument structs and exposed over MCP
 - `batch`: `calls=[{tool, args}]`. Calls run serially; child results are
   delimited (`#N tool ok|error`) when they include output or handles and
   failures do not abort siblings. Nested `batch` is rejected.
-- `sh`: `command`, `cwd`, `timeout_ms`, `stdin`. CLI parses only wbash control
+- `sh`: `command`, `cwd`, `timeout_ms`, `stdin`. CLI parses only wxec control
   flags for `sh` (`cwd`, `timeout_ms`, `stdin`); prefer `--` when command
   text/args are ambiguous. Requires `execute` tier and `exec.allow_shell=true`.
 

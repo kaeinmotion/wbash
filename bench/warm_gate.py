@@ -3,14 +3,14 @@ import os, subprocess, sys, tempfile
 from pathlib import Path
 
 def main():
-    files = int(os.environ.get("WBASH_PERF_FILES", "10000"))
+    files = int(os.environ.get("WXEC_PERF_FILES", "10000"))
     cmd = [
         "cargo",
         "test",
         "--release",
         "-q",
         "-p",
-        "wbash-tools",
+        "wxec-tools",
         "--test",
         "warm_perf",
         "--",
@@ -18,9 +18,9 @@ def main():
         "--nocapture",
     ]
     env = os.environ.copy()
-    env["WBASH_PERF_FILES"] = str(files)
-    env.setdefault("WBASH_WARM_READ_P95_MS", "5.0")
-    env.setdefault("WBASH_WARM_SEARCH_P95_MS", "25.0")
+    env["WXEC_PERF_FILES"] = str(files)
+    env.setdefault("WXEC_WARM_READ_P95_MS", "5.0")
+    env.setdefault("WXEC_WARM_SEARCH_P95_MS", "25.0")
     p = subprocess.run(cmd, env=env)
     return p.returncode
 

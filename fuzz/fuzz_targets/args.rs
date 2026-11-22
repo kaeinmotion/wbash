@@ -2,7 +2,7 @@
 use libfuzzer_sys::fuzz_target;
 use serde::Deserialize;
 use serde_json::Value;
-use wbash_core::args::{default_budget, parse_args, parse_line_range, strip_common};
+use wxec_core::args::{default_budget, parse_args, parse_line_range, strip_common};
 
 #[derive(Deserialize, Debug)]
 #[allow(dead_code)]

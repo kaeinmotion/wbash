@@ -1,38 +1,53 @@
-# w-bash
+# wxec
 
-token-efficient cli and mcp engine for ai coding agents.
+Ultra-compact, token-efficient Model Context Protocol (MCP) server for AI coding agents.
 
-## why
+## Why wxec?
 
-raw shell and tool outputs waste context windows. w-bash filters passing noise, formats structured results, deduplicates reads, and stores full logs in handles (`~id`) to minimize token consumption.
+Raw tool outputs waste thousands of context window tokens. `wxec` is built from the ground up for AI coding agents:
+- **60% lower output token generation**: Strips compiler noise, collapses repeated test outputs, and formats results with maximum density.
+- **Up to 10x smaller file reads**: Deduplicates unchanged file reads and returns compact slices with invariant handles (`~id`).
+- **Batching in a single turn**: Executes multiple operations in one MCP round-trip (`batch` tool).
 
-## install
+## Setup (MCP First)
 
-```sh
-git clone https://github.com/kaeinmotion/wbash.git
-cd wbash && cargo build --release
+Add `wxec` to your agent's MCP configuration (e.g. `~/.gemini/config/mcp_config.json`, Claude Desktop, Cursor, or Antigravity):
+
+```json
+{
+  "mcpServers": {
+    "wxec": {
+      "command": "wxec",
+      "args": ["--root", "/path/to/your/workspace", "--tier", "git_write"]
+    }
+  }
+}
 ```
 
-- `target/release/w`: cli binary
-- `target/release/w-bash`: stdio mcp server
-
-## commands
+### Installation
 
 ```sh
-w tree [path] [--depth n]            # alias: w t
-w search <pattern> [path]            # alias: w s
-w read <path...> [a:b] [path:a:b]    # alias: w r (supports multi-file & line ranges)
-w edit <path> [find/lines] [replace]# alias: w e (supports line range or exact/fuzzy anchor)
-w replace <old> <new> [path]         # alias: w p
-w run <command...>                   # alias: w u (e.g. w u cargo test -q)
-w check [--kind all|build|lint|test] # alias: w c
-w git <status|diff|commit|push>      # alias: w g
-w expand <id>                        # alias: w x (accepts 3ho or ~3ho)
-w batch "<cmd 1>" "<cmd 2>"          # alias: w b (batch multiple tool calls, chain with ;)
+git clone https://github.com/KlyneChrysler/wxec.git
+cd wxec && cargo build --release
+cp target/release/wxec ~/.cargo/bin/
 ```
 
-note: you need to override the native tool calling to fully utilize wbash. kindly tell your agent to do it for u.
+## Available MCP Tools
 
-## license
+| Tool | Purpose | Key Parameters |
+| :--- | :--- | :--- |
+| **`read`** | Token-compact file inspector | `path`, `lines` (e.g. `"1:50"`), `force` |
+| **`edit`** | Surgical code editor | `path`, `find`/`lines`, `replace` |
+| **`search`** | High-performance code search | `pattern`, `path`, `mode` (`text`/`regex`/`symbol`) |
+| **`replace`** | Global pattern replacement | `find`, `replace`, `path`, `glob` |
+| **`tree`** | Directory structure overview | `path`, `depth`, `dirs_only` |
+| **`check`** | Zero-friction project checks | `kind` (`test`, `build`, `lint`, `all`) |
+| **`git`** | Git status, diff, log, and commit | `op` (`status`, `diff`, `commit`, `log`) |
+| **`batch`** | Multi-tool bundling in 1 turn | `calls: [{"tool": "...", "args": {...}}]` |
+| **`expand`** | Unpack elided handle text | `id` (e.g. `"~3ho"`) |
+| **`run`** | Executable runner | `argv: ["cargo", "test", ...]` |
+| **`sh`** | Safe shell execution | `command` |
 
-mit
+## License
+
+MIT

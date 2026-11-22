@@ -13,11 +13,11 @@ serde_json = "1"
 libfuzzer-sys = "0.4"
 tempfile = "3"
 
-[dependencies.wbash-core]
-path = "../crates/wbash-core"
+[dependencies.wxec-core]
+path = "../crates/wxec-core"
 
-[dependencies.wbash-parsers]
-path = "../crates/wbash-parsers"
+[dependencies.wxec-parsers]
+path = "../crates/wxec-parsers"
 
 [[bin]]
 name = "args"

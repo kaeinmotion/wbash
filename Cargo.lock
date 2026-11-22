@@ -567,87 +567,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wbash-adapters"
-version = "0.2.4"
-dependencies = [
- "serde",
- "serde_json",
- "wbash-core",
- "wbash-index",
- "wbash-parsers",
- "wbash-tools",
-]
-
-[[package]]
-name = "wbash-cli"
-version = "0.2.4"
-dependencies = [
- "serde",
- "serde_json",
- "tempfile",
- "toml",
- "wbash-adapters",
- "wbash-core",
- "wbash-index",
- "wbash-parsers",
- "wbash-tools",
-]
-
-[[package]]
-name = "wbash-core"
-version = "0.2.4"
-dependencies = [
- "blake3",
- "libc",
- "regex",
- "serde",
- "serde_json",
- "tiktoken-rs",
- "toml",
- "wbash-index",
-]
-
-[[package]]
-name = "wbash-index"
-version = "0.2.4"
-dependencies = [
- "ignore",
- "serde",
- "serde_json",
- "tree-sitter",
- "tree-sitter-go",
- "tree-sitter-python",
- "tree-sitter-rust",
- "tree-sitter-typescript",
-]
-
-[[package]]
-name = "wbash-parsers"
-version = "0.2.4"
-dependencies = [
- "regex",
- "serde",
- "serde_json",
- "toml",
- "wbash-core",
-]
-
-[[package]]
-name = "wbash-tools"
-version = "0.2.4"
-dependencies = [
- "globset",
- "regex",
- "serde",
- "serde_json",
- "similar",
- "tempfile",
- "wbash-core",
- "wbash-index",
- "wbash-parsers",
-]
-
-[[package]]
 name = "winapi-util"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -678,6 +597,87 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "wxec-adapters"
+version = "0.2.4"
+dependencies = [
+ "serde",
+ "serde_json",
+ "wxec-core",
+ "wxec-index",
+ "wxec-parsers",
+ "wxec-tools",
+]
+
+[[package]]
+name = "wxec-cli"
+version = "0.2.4"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml",
+ "wxec-adapters",
+ "wxec-core",
+ "wxec-index",
+ "wxec-parsers",
+ "wxec-tools",
+]
+
+[[package]]
+name = "wxec-core"
+version = "0.2.4"
+dependencies = [
+ "blake3",
+ "libc",
+ "regex",
+ "serde",
+ "serde_json",
+ "tiktoken-rs",
+ "toml",
+ "wxec-index",
+]
+
+[[package]]
+name = "wxec-index"
+version = "0.2.4"
+dependencies = [
+ "ignore",
+ "serde",
+ "serde_json",
+ "tree-sitter",
+ "tree-sitter-go",
+ "tree-sitter-python",
+ "tree-sitter-rust",
+ "tree-sitter-typescript",
+]
+
+[[package]]
+name = "wxec-parsers"
+version = "0.2.4"
+dependencies = [
+ "regex",
+ "serde",
+ "serde_json",
+ "toml",
+ "wxec-core",
+]
+
+[[package]]
+name = "wxec-tools"
+version = "0.2.4"
+dependencies = [
+ "globset",
+ "regex",
+ "serde",
+ "serde_json",
+ "similar",
+ "tempfile",
+ "wxec-core",
+ "wxec-index",
+ "wxec-parsers",
 ]
 
 [[package]]

@@ -37,7 +37,7 @@ jobs:
       - name: unit + golden + invariants + differential + schema budget
         run: cargo test --workspace
       - name: schema budget
-        run: cargo test -p wbash-adapters --test mcp -- --nocapture
+        run: cargo test -p wxec-adapters --test mcp -- --nocapture
 
   estimator-calibration:
     runs-on: ubuntu-latest
@@ -45,10 +45,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test -p wbash-core --test calibration -- --nocapture
+      - run: cargo test -p wxec-core --test calibration -- --nocapture
       - name: regenerated corpus is current
         run: |
-          cargo run -q -p wbash-core --example calibrate -- --write-expected
+          cargo run -q -p wxec-core --example calibrate -- --write-expected
           git diff --exit-code corpus/expected/estimator.json
 
   bench-scripted:
@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release -p wbash-cli
+      - run: cargo build --release -p wxec-cli
       - run: python3 bench/run.py --runners bash,w --w-bin target/release/w --baseline bench/baselines/v0.2.3-baseline.json --max-regress-pct 10 --save-baseline bench/results/ci-baseline.json
       - uses: actions/upload-artifact@v4
         with:
@@ -70,13 +70,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release -p wbash-cli
+      - run: cargo build --release -p wxec-cli
       - run: mkdir -p bench/results
       - name: latency smoke (CLI advisory)
         run: python3 bench/perf.py --w-bin target/release/w | tee bench/results/perf.txt
       - name: warm in-process gates G6-G8
         env:
-          WBASH_PERF_FILES: "10000"
+          WXEC_PERF_FILES: "10000"
         run: python3 bench/warm_gate.py
       - uses: actions/upload-artifact@v4
         if: always()
@@ -93,9 +93,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: confinement, tier, redaction, and invariant checks
         run: |
-          cargo test -p wbash-core --test core --test properties -- --nocapture
-          cargo test -p wbash-tools --test invariants -- --nocapture
-          cargo test -p wbash-adapters --test mcp -- --nocapture
+          cargo test -p wxec-core --test core --test properties -- --nocapture
+          cargo test -p wxec-tools --test invariants -- --nocapture
+          cargo test -p wxec-adapters --test mcp -- --nocapture
 
 
   fuzz-smoke:

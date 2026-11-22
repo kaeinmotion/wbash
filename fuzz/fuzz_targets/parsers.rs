@@ -1,8 +1,8 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
-use wbash_core::parsers::ParserSet;
-use wbash_core::types::Exit;
-use wbash_parsers::ParserRegistry;
+use wxec_core::parsers::ParserSet;
+use wxec_core::types::Exit;
+use wxec_parsers::ParserRegistry;
 
 fuzz_target!(|data: &[u8]| {
     let text = String::from_utf8_lossy(data);

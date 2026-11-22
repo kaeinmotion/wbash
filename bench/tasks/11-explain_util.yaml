@@ -4,7 +4,7 @@ prompt: "Explain the tool utilities module and name its key entry points."
 expect:
   - "atomic_write"
 bash:
-  - "wc -l crates/wbash-tools/src/util.rs"
-  - "sed -n \"1,240p\" crates/wbash-tools/src/util.rs"
+  - "wc -l crates/wxec-tools/src/util.rs"
+  - "sed -n \"1,240p\" crates/wxec-tools/src/util.rs"
 w:
-  - "w read crates/wbash-tools/src/util.rs --outline --budget 700"
+  - "w read crates/wxec-tools/src/util.rs --outline --budget 700"

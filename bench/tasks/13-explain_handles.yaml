@@ -4,7 +4,7 @@ prompt: "Explain the handle store module and name its key entry points."
 expect:
   - "fn put"
 bash:
-  - "wc -l crates/wbash-core/src/handles.rs"
-  - "sed -n \"1,240p\" crates/wbash-core/src/handles.rs"
+  - "wc -l crates/wxec-core/src/handles.rs"
+  - "sed -n \"1,240p\" crates/wxec-core/src/handles.rs"
 w:
-  - "w read crates/wbash-core/src/handles.rs --outline --budget 700"
+  - "w read crates/wxec-core/src/handles.rs --outline --budget 700"

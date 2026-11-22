@@ -54,5 +54,5 @@ python3 bench/perf.py --strict    # nonzero on misses
 `perf.py` creates a large workspace and measures cold start, read, and search
 per CLI invocation (advisory; process startup/no durable warm index affect G6–G8).
 Warm in-process read/search gates are enforced via
-`crates/wbash-tools/tests/warm_perf.rs` (`bench/warm_gate.py`, CI `perf-smoke`).
+`crates/wxec-tools/tests/warm_perf.rs` (`bench/warm_gate.py`, CI `perf-smoke`).
 See `docs/AMENDMENTS.md` A12–A13.

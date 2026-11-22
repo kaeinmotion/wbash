@@ -17,12 +17,12 @@ This document is the normative source for v0.1 implementation, testing, packagin
 |---|---|---|
 | Product name | `w bash` | prose/branding |
 | CLI binary | `w` | primary local interface |
-| MCP server name | `w-bash` | stdio transport (v0.1) |
-| Crates | `wbash-core`, `wbash-tools`, `wbash-index`, `wbash-parsers`, `wbash-adapters`, `wbash-cli` | single workspace, one static binary |
-| User config | `$XDG_CONFIG_HOME/w-bash/config.toml` else `~/.config/w-bash/config.toml` | |
-| Project config | `<root>/.w-bash/config.toml` | inactive until trusted |
-| Cache/data | `$XDG_CACHE_HOME/w-bash/` else `~/.cache/w-bash/` | handles, indexes, stats, audit |
-| Env prefix | `WBASH_*` | runtime overrides/logging |
+| MCP server name | `wxec` | stdio transport (v0.1) |
+| Crates | `wxec-core`, `wxec-tools`, `wxec-index`, `wxec-parsers`, `wxec-adapters`, `wxec-cli` | single workspace, one static binary |
+| User config | `$XDG_CONFIG_HOME/wxec/config.toml` else `~/.config/wxec/config.toml` | |
+| Project config | `<root>/.wxec/config.toml` | inactive until trusted |
+| Cache/data | `$XDG_CACHE_HOME/wxec/` else `~/.cache/wxec/` | handles, indexes, stats, audit |
+| Env prefix | `WXEC_*` | runtime overrides/logging |
 | Handle ref | `~<id>` where `<id>` is `[a-z0-9]{1,8}` | session-scoped, immutable |
 | Content hash display | `b3:<16hex>` | BLAKE3, full hash stored internally |
 
@@ -61,7 +61,7 @@ This document is the normative source for v0.1 implementation, testing, packagin
 | G5 | MCP schema budget | ≤1500 tokens total | CI count of exposed tool names+descriptions+schemas |
 | G6 | `read` latency p95 warm | <5 ms | perf bench |
 | G7 | `search` latency p95 warm, 50k files | <50 ms | perf bench, warm index or documented fallback |
-| G8 | Cold start `w` / `w-bash` | <50 ms / <200 ms | perf bench |
+| G8 | Cold start `w` / `wxec` | <50 ms / <200 ms | perf bench |
 | G9 | Token estimator MAPE | ≤10% | corpus vs pinned tokenizer |
 | G10 | Security | 0 known path-jail/policy escapes | fuzz + policy matrix |
 
@@ -72,10 +72,10 @@ This document is the normative source for v0.1 implementation, testing, packagin
 ### 2.1 Components and boundaries
 | Layer | Crate | Responsibility | MUST NOT |
 |---|---|---|---|
-| L1 Adapters | `wbash-adapters`, `wbash-cli` | MCP stdio framing, CLI arg parsing/exit codes, hook mapping, session propagation | contain tool/domain logic |
-| L2 Dispatcher | `wbash-core` | validate→resolve→policy→execute→budget-fit→format→record | perform transport I/O specifics |
-| L3 Tools | `wbash-tools` | tool semantics; emit `ToolResult` | emit wire text/JSON |
-| L4 Services | `wbash-core/index/parsers` | workspace/index, ledger, handles, executor, parsers, formatter, estimator, policy, stats, audit | depend on adapters |
+| L1 Adapters | `wxec-adapters`, `wxec-cli` | MCP stdio framing, CLI arg parsing/exit codes, hook mapping, session propagation | contain tool/domain logic |
+| L2 Dispatcher | `wxec-core` | validate→resolve→policy→execute→budget-fit→format→record | perform transport I/O specifics |
+| L3 Tools | `wxec-tools` | tool semantics; emit `ToolResult` | emit wire text/JSON |
+| L4 Services | `wxec-core/index/parsers` | workspace/index, ledger, handles, executor, parsers, formatter, estimator, policy, stats, audit | depend on adapters |
 | L5 Platform | (within services) | FS, process, git (`gix`), watcher | leak OS details into tool contracts |
 
 ### 2.2 Request pipeline (normative order)
@@ -139,7 +139,7 @@ Exit = { code: i32 } | { timeout: true }
 
 ### 3.3 On-disk layout and permissions
 ```text
-$XDG_CACHE_HOME/w-bash/
+$XDG_CACHE_HOME/wxec/
   handles/<session_hash>/<id>.blob      # raw (redacted) payload
   handles/<session_hash>/manifest.jsonl # Handle records (append-only)
   index/<root_hash>/meta.json
@@ -149,7 +149,7 @@ $XDG_CACHE_HOME/w-bash/
   audit.jsonl                           # only if telemetry.audit_log=true
   sessions/<session_hash>.json          # optional snapshot for resume (v0.1 MAY omit)
 ```
-- Directories `0700`, files `0600`. Project-local state MUST NOT be written except user-approved `.w-bash/` config artifacts (none by default).
+- Directories `0700`, files `0600`. Project-local state MUST NOT be written except user-approved `.wxec/` config artifacts (none by default).
 - **Handle eviction:** expire by TTL (default 24h) and LRU when total > `handles.max_bytes` (default 500 MiB). `expand` on missing/expired → `!handle_expired`.
 
 ### 3.4 Determinism inputs
@@ -183,8 +183,8 @@ Deterministic output depends on: normalized args, config hash, workspace bytes/m
 
 **Streams:** primary result to stdout; CLI diagnostics (e.g. config parse failure) to stderr. Lean output MUST end with `\n`.
 
-### 4.2 MCP (`w-bash`, stdio v0.1)
-- Transport: MCP stdio JSON-RPC. Server name `w-bash`, version = binary version.
+### 4.2 MCP (`wxec`, stdio v0.1)
+- Transport: MCP stdio JSON-RPC. Server name `wxec`, version = binary version.
 - Exposes one MCP tool per `w bash` tool with identical names and parameter schemas.
 - Tool annotations: `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint=false` set accurately per §5 matrix.
 - `session_id` propagation: adapter MUST accept session from MCP metadata/argument convention supported by host; if absent use `default`. (Implementation MUST document exact field; RECOMMENDED: optional `_meta.session_id` or `session` param if host requires, but prefer adapter-level.)
@@ -193,12 +193,12 @@ Deterministic output depends on: normalized args, config hash, workspace bytes/m
 ### 4.3 Hook adapter (v0.1 optional, recommended)
 - Maps host read/search/exec/test built-ins to `read|search|run|check` where safe.
 - MUST preserve host permission semantics and MUST NOT widen policy tier.
-- Emits `# via w-bash` note in debug trace only (not in lean output).
+- Emits `# via wxec` note in debug trace only (not in lean output).
 
 ### 4.4 Configuration precedence and trust
 1. built-in defaults
-2. user config (`~/.config/w-bash/config.toml` or `$WBASH_CONFIG`)
-3. project config (`.w-bash/config.toml`) **only if trusted**
+2. user config (`~/.config/wxec/config.toml` or `$WXEC_CONFIG`)
+3. project config (`.wxec/config.toml`) **only if trusted**
 4. explicit CLI flags / invocation overrides
 
 **Project trust:** on first encounter of untrusted project config, CLI MUST refuse to apply it and emit actionable instruction (e.g. `w config trust --root <root>` or equivalent) unless `--no-project-config`. Trust decision stored in user cache (`config/trust.json`, 0600). v0.1 MAY implement `--no-project-config` only and require manual trust file creation documented; either way behavior MUST be explicit and fail-closed.
@@ -573,7 +573,7 @@ ignored = "skip"
 `cargo-build`, `cargo-test`, `cargo-clippy`, `go-test`, `pytest`, `jest`, `vitest`, `tsc`, `eslint`, `ruff` (as detected). Generic fallback always available.
 
 ### 10.3 Rules/overrides
-- User: `~/.config/w-bash/rules.d/*.toml`; Project: `.w-bash/rules.d/*.toml` (trusted only). Same precedence as config; project requires trust.
+- User: `~/.config/wxec/rules.d/*.toml`; Project: `.wxec/rules.d/*.toml` (trusted only). Same precedence as config; project requires trust.
 
 ---
 
@@ -601,7 +601,7 @@ bench/baselines/...
 
 ### 11.3 Benchmark harness
 - Tasks: fix failing test, locate regression cause, rename symbol, explain module, resolve lint/type errors, summarize git diff, etc. (≥30).
-- Runners: plain bash, `w-bash` MCP/CLI, and (where supported) RTK/other baselines with **fair command mapping** per task/harness (no mismatched unsupported subcommands).
+- Runners: plain bash, `wxec` MCP/CLI, and (where supported) RTK/other baselines with **fair command mapping** per task/harness (no mismatched unsupported subcommands).
 - Metrics: success (pass criteria per task), turns, tool calls, input/output/total tokens, wall time, variance. Report deltas and gate pass/fail.
 - **Agentic E2E (required for “beats X” claims):** pinned model/agent harness, fixed task set, record turns/retries and model tokens incl. prompts/tool schemas where measurable; compare `w` vs baselines on the same protocol. Scripted CLI benchmarks are necessary but not sufficient for agentic token claims.
 
@@ -612,7 +612,7 @@ bench/baselines/...
 | M | Deliverable | Exit criteria |
 |---|---|---|
 | M0 | Repo scaffold, CI, config/schema loader, wire formatter skeleton, golden harness | empty-tool roundtrip + G5 check scaffolding |
-| M1 | `wbash-core` (dispatcher, session, policy, budget, estimator, handles) + `tree/read/search/expand` + workspace index + MCP stdio + CLI | I2–I4,I6 pass for scope; nav benchmark shows token win |
+| M1 | `wxec-core` (dispatcher, session, policy, budget, estimator, handles) + `tree/read/search/expand` + workspace index + MCP stdio + CLI | I2–I4,I6 pass for scope; nav benchmark shows token win |
 | M2 | executor + `run` + parsers (10) + `check` | differential/exit parity; I1 on exec outputs |
 | M3 | `edit` + `git` read/write-gated + redaction + audit | I1,I5 security suites pass |
 | M4 | ledger diffing/status diffs + `batch` + `sh` + `gain/discover` | end-to-end tasks runnable; perf smoke within targets |
@@ -624,7 +624,7 @@ bench/baselines/...
 - `w --version`, `w --help`, `w <tool> --help` (schema-derived).
 - `w config show` prints effective config with redacted sensitive values.
 - `w handles gc` enforces TTL/cap immediately.
-- Logs/traces: controlled by `WBASH_LOG` (e.g. `error,warn,info,debug,trace`), redacted, local stderr/file as configured (default off/minimal).
+- Logs/traces: controlled by `WXEC_LOG` (e.g. `error,warn,info,debug,trace`), redacted, local stderr/file as configured (default off/minimal).
 
 ---
 
@@ -632,7 +632,7 @@ bench/baselines/...
 
 | Decision | Resolution |
 |---|---|
-| Product/CLI/MCP naming | `w bash` / `w` / `w-bash` / `wbash-*` |
+| Product/CLI/MCP naming | `w bash` / `w` / `wxec` / `wxec-*` |
 | License | MIT |
 | Primary transport | MCP stdio (v0.1); HTTP deferred |
 | Platforms | Linux/macOS; Windows via WSL |
@@ -648,10 +648,10 @@ bench/baselines/...
 
 ## 15. Implementation kickoff checklist (ready-to-execute)
 
-- [ ] Create workspace/repo `w-bash/` with crate skeleton and CI per §11.1, §12 M0.
+- [ ] Create workspace/repo `wxec/` with crate skeleton and CI per §11.1, §12 M0.
 - [ ] Commit this spec as `docs/spec-v3.md` and wire format as `docs/wire-format-v0.2.md` (derived, consistent).
 - [ ] Define MCP/CLI JSON schemas for all tools and add schema-token gate test (G5).
-- [ ] Implement `wbash-core` types, canonicalization, formatter, budget fitter, and golden tests for §6.4 examples.
+- [ ] Implement `wxec-core` types, canonicalization, formatter, budget fitter, and golden tests for §6.4 examples.
 - [ ] Add corpus fixtures and baseline harness before optimization work (G1–G3 measurement baseline).
 - [ ] Implement policy/path jail/redaction primitives before `run/edit/git-write` enablement.
 - [ ] Track all gate metrics in CI artifacts; block release on any regression past thresholds.

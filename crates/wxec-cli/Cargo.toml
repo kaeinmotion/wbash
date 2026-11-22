@@ -1,0 +1,30 @@
+[package]
+name = "wxec-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CLI and MCP server binaries (w, wxec) for AI agents"
+repository.workspace = true
+readme.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "w"
+path = "src/main.rs"
+
+[[bin]]
+name = "wxec"
+path = "src/bin/wxec.rs"
+
+[dependencies]
+wxec-core = { path = "../wxec-core" }
+wxec-index = { path = "../wxec-index" }
+wxec-parsers = { path = "../wxec-parsers" }
+wxec-tools = { path = "../wxec-tools" }
+wxec-adapters = { path = "../wxec-adapters" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

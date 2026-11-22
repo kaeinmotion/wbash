@@ -13,7 +13,7 @@
 
 ## Trust
 
-- Project config (`.w-bash/config.toml`) and project rules/parsers are loaded only after the root is trusted.
+- Project config (`.wxec/config.toml`) and project rules/parsers are loaded only after the root is trusted.
 - `w config show` prints effective config; `w config trust` records the canonical root in the user config (locked for cross-process updates).
 - Untrusted project configuration is ignored, with an advisory note.
 - TOML parser rules are trusted-root only, validated, size-limited, and must be regular files (symlinks ignored).
@@ -50,5 +50,5 @@ individually; a denied call fails only its own block.
   are replaced and counted (`meta.redactions`).
 - Handles are byte-limited (`handles.max_bytes`) and TTL-limited
   (`handles.ttl_secs`); `w handles gc` enforces both immediately.
-- Logs are off/minimal by default; `WBASH_LOG` enables redacted local logging.
+- Logs are off/minimal by default; `WXEC_LOG` enables redacted local logging.
 - No network calls and no telemetry in v0.1.

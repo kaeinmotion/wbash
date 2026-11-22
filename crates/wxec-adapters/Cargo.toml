@@ -1,0 +1,18 @@
+[package]
+name = "wxec-adapters"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MCP and transport adapters for wxec, for AI agent tool use"
+repository.workspace = true
+readme.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+wxec-core = { path = "../wxec-core" }
+wxec-index = { path = "../wxec-index" }
+wxec-parsers = { path = "../wxec-parsers" }
+wxec-tools = { path = "../wxec-tools" }
+serde = { workspace = true }
+serde_json = { workspace = true }

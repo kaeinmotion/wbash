@@ -1,7 +1,7 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 use std::path::{Path, PathBuf};
-use wbash_core::policy;
+use wxec_core::policy;
 
 fuzz_target!(|data: &[u8]| {
     let raw = String::from_utf8_lossy(data);

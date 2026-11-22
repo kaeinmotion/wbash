@@ -4,7 +4,7 @@ prompt: "Explain the parser registry module and name its key entry points."
 expect:
   - "with_toml"
 bash:
-  - "wc -l crates/wbash-parsers/src/lib.rs"
-  - "sed -n \"1,240p\" crates/wbash-parsers/src/lib.rs"
+  - "wc -l crates/wxec-parsers/src/lib.rs"
+  - "sed -n \"1,240p\" crates/wxec-parsers/src/lib.rs"
 w:
-  - "w read crates/wbash-parsers/src/lib.rs --outline --budget 700"
+  - "w read crates/wxec-parsers/src/lib.rs --outline --budget 700"

@@ -1,10 +1,10 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 use std::sync::OnceLock;
-use wbash_core::formatter::{render, RenderOptions};
-use wbash_core::handles::HandleStore;
-use wbash_core::redact::Redactor;
-use wbash_core::types::{Format, ToolResult};
+use wxec_core::formatter::{render, RenderOptions};
+use wxec_core::handles::HandleStore;
+use wxec_core::redact::Redactor;
+use wxec_core::types::{Format, ToolResult};
 
 fn tmpdir() -> &'static tempfile::TempDir {
     static D: OnceLock<tempfile::TempDir> = OnceLock::new();
