@@ -413,7 +413,12 @@ pub struct RunTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RunArgs {
-    #[serde(alias = "cmd", alias = "args")]
+    #[serde(
+        deserialize_with = "wxec_core::args::deserialize_argv",
+        alias = "cmd",
+        alias = "args",
+        alias = "command"
+    )]
     argv: Vec<String>,
     #[serde(default = "dot", alias = "working_dir", alias = "dir")]
     cwd: String,
@@ -446,7 +451,7 @@ impl Tool for RunTool {
         json!({
             "type": "object",
             "properties": {
-                "argv": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                "argv": {"type": ["array", "string"], "items": {"type": "string"}},
                 "cwd": {"type": "string", "default": "."},
                 "timeout_ms": {"type": "integer", "minimum": 1},
                 "stdin": {"type": "string"},
@@ -531,8 +536,9 @@ pub struct ShTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ShArgs {
+    #[serde(alias = "cmd")]
     command: String,
-    #[serde(default = "dot")]
+    #[serde(default = "dot", alias = "working_dir", alias = "dir")]
     cwd: String,
     timeout_ms: Option<u64>,
     stdin: Option<String>,

@@ -370,4 +370,36 @@ fn test_ergonomic_tool_features() {
     );
     let st = call(&mut d, "git", json!({"op": "status"}));
     assert!(st.text.contains("0 changed"), "{}", st.text);
+
+    // 6. edit auto-creates non-existent parent directories
+    let nested_create = call(
+        &mut d,
+        "edit",
+        json!({"path": "deeply/nested/sub/folder/file.txt", "content": "nested content"}),
+    );
+    assert!(nested_create.ok, "{}", nested_create.text);
+    assert!(root.join("deeply/nested/sub/folder/file.txt").exists());
+
+    // 7. run accepts string command for argv
+    d.set_session_tier("s", Tier::Execute).unwrap();
+    let run_str = call(&mut d, "run", json!({"argv": "echo string_argv_ok"}));
+    assert!(run_str.ok, "{}", run_str.text);
+
+    // 8. replace accepts target and replacement aliases
+    let repl_alias = call(
+        &mut d,
+        "replace",
+        json!({"path": "deeply/nested/sub/folder/file.txt", "target": "nested", "replacement": "updated"}),
+    );
+    assert!(repl_alias.ok, "{}", repl_alias.text);
+    let verify_read = call(
+        &mut d,
+        "read",
+        json!({"path": "deeply/nested/sub/folder/file.txt"}),
+    );
+    assert!(
+        verify_read.text.contains("updated content"),
+        "{}",
+        verify_read.text
+    );
 }

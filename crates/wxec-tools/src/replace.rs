@@ -17,7 +17,14 @@ pub struct ReplaceTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ReplaceArgs {
+    #[serde(alias = "target", alias = "old_string", alias = "old_str")]
     find: String,
+    #[serde(
+        alias = "replacement",
+        alias = "new_string",
+        alias = "new_str",
+        alias = "with"
+    )]
     replace: String,
     #[serde(default = "dot")]
     path: String,

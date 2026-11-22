@@ -155,6 +155,71 @@ where
     deserializer.deserialize_option(LineRangeVisitor)
 }
 
+/// Split a command line string into arguments respecting quotes.
+pub fn split_shell_tokens(cmd: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut cur = String::new();
+    let mut in_quote = None;
+    for c in cmd.chars() {
+        match (c, in_quote) {
+            ('"' | '\'', None) => in_quote = Some(c),
+            (q, Some(cur_q)) if q == cur_q => in_quote = None,
+            (' ' | '\t', None) => {
+                if !cur.is_empty() {
+                    tokens.push(std::mem::take(&mut cur));
+                }
+            }
+            (c, _) => cur.push(c),
+        }
+    }
+    if !cur.is_empty() {
+        tokens.push(cur);
+    }
+    tokens
+}
+
+/// Flexible argv deserializer for tool args.
+/// Accepts either an array of strings (`["cargo", "test"]`) or a single command string (`"cargo test"`).
+pub fn deserialize_argv<'de, D>(deserializer: D) -> std::result::Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct ArgvVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for ArgvVisitor {
+        type Value = Vec<String>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("an array of strings or a single command string")
+        }
+
+        fn visit_str<E>(self, s: &str) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            let parts = split_shell_tokens(s);
+            if parts.is_empty() {
+                Ok(vec![s.to_string()])
+            } else {
+                Ok(parts)
+            }
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+        where
+            A: serde::de::SeqAccess<'de>,
+        {
+            let mut items = Vec::new();
+            while let Some(item) = seq.next_element::<String>()? {
+                items.push(item);
+            }
+            Ok(items)
+        }
+    }
+
+    deserializer.deserialize_any(ArgvVisitor)
+}
+
 /// Parse a `start:end` 1-based inclusive range. Either side may be omitted.
 pub fn parse_line_range(spec: &str, len: usize) -> Result<(usize, usize)> {
     parse_line_range_inner(spec, len, false)

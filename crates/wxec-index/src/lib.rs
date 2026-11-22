@@ -11,6 +11,11 @@ pub const BUILTIN_IGNORES: &[&str] = &[
     "target",
     "vendor",
     ".next",
+    ".turbo",
+    ".output",
+    "coverage",
+    ".nuxt",
+    ".svelte-kit",
     "dist",
     ".venv",
     "__pycache__",
@@ -703,6 +708,8 @@ pub fn is_known_binary_ext(rel: &str) -> bool {
             | "mov"
             | "avi"
             | "mkv"
+            | "pyc"
+            | "pyo"
             | "ogg"
             | "wav"
             | "flac"

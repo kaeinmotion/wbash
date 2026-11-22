@@ -74,6 +74,14 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     let parent = path
         .parent()
         .ok_or_else(|| WErr::invalid_args("path has no parent directory", "use a file path"))?;
+    if !parent.exists() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            WErr::new(
+                "permission_denied",
+                format!("create directory {}: {e}", parent.display()),
+            )
+        })?;
+    }
     #[cfg(unix)]
     let existing_mode = std::fs::metadata(path).ok().map(|m| {
         use std::os::unix::fs::PermissionsExt;
