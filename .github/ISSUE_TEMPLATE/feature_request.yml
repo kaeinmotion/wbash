@@ -1,0 +1,20 @@
+name: Feature Request
+description: Suggest an idea or feature for wxec
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Share your ideas to improve token efficiency and developer experience!
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What feature would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: What agent workflow does this benefit?

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/registry/main/docs/reference/server-json/draft/schema.json",
+  "name": "kaeinmotion/wxec",
+  "title": "wxec",
+  "description": "Ultra token-efficient CLI and Model Context Protocol (MCP) server for AI coding agents",
+  "repository": {
+    "url": "https://github.com/kaeinmotion/wxec",
+    "source": "github"
+  },
+  "version": "0.2.5",
+  "license": "MIT",
+  "transport": {
+    "type": "stdio"
+  }
+}
