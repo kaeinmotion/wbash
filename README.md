@@ -1,8 +1,14 @@
 ### **wxec**
 
-token-efficient execution layer and model context protocol (mcp) server for ai coding agents.
+[![CI](https://github.com/kaeinmotion/wxec/actions/workflows/ci.yml/badge.svg)](https://github.com/kaeinmotion/wxec/actions)
+[![Release](https://img.shields.io/github/v/release/kaeinmotion/wxec?color=blue)](https://github.com/kaeinmotion/wxec/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Glama Quality Score](https://glama.ai/mcp/servers/kaeinmotion/wxec/badges/score.svg)](https://glama.ai/mcp/servers/kaeinmotion/wxec)
+[![Model Context Protocol](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 
-`wxec` is an execution engine built in pure rust that replaces raw terminal dumps with high-density, structured tool outputs. standard shell commands flood the agent's context window with compiler traces, test logs, and whole files. `wxec` cuts output tokens by up to 84%, eliminates ide permission dialogues, and enables single-turn multi-tool execution with lossless memory handles.
+**Ultra token-efficient Model Context Protocol (MCP) server for AI coding agents (Claude, Cursor, Cline, Windsurf, Antigravity).**
+
+`wxec` is an execution engine built in pure Rust that connects AI coding agents directly to your workspace. Standard shell commands flood your context window with compiler traces, test logs, and whole files. `wxec` cuts output tokens by up to **84%**, eliminates IDE permission dialogues, and enables sub-10ms single-turn multi-tool execution with lossless memory handles.
 
 ### **table of contents**
 
@@ -104,22 +110,70 @@ bundle multi-step workflows into a single round-trip turn to eliminate back-and-
 
 #### **installation**
 
+Build from source:
 ```sh
 git clone https://github.com/kaeinmotion/wxec.git
 cd wxec && cargo build --release
 cp target/release/wxec ~/.cargo/bin/
-cp target/release/w ~/.cargo/bin/
 ```
 
-#### **mcp client configuration**
-add to your agent's mcp configuration (cursor, antigravity, claude desktop, or gemini cli):
+Or install via Smithery:
+```sh
+npx -y @smithery/cli install kaeinmotion/wxec --client cursor
+```
 
+#### **1-click client configurations**
+
+**Cursor** (`.cursor/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "wxec": {
+      "command": "wxec",
+      "args": ["--tier", "git_write"]
+    }
+  }
+}
+```
+
+**Claude Desktop** (`claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
     "wxec": {
       "command": "wxec",
       "args": ["--root", "/path/to/your/workspace", "--tier", "git_write"]
+    }
+  }
+}
+```
+
+**Claude Code CLI**:
+```sh
+claude mcp add wxec -- wxec --tier git_write
+```
+
+**Cline / Roo Code** (`cline_mcp_settings.json`):
+```json
+{
+  "mcpServers": {
+    "wxec": {
+      "command": "wxec",
+      "args": ["--tier", "git_write"],
+      "disabled": false,
+      "autoApprove": ["read", "search", "tree", "expand"]
+    }
+  }
+}
+```
+
+**Docker (No Local Rust Toolchain)**:
+```json
+{
+  "mcpServers": {
+    "wxec": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-v", "${workspaceFolder}:/workspace", "ghcr.io/kaeinmotion/wxec"]
     }
   }
 }

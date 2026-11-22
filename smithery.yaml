@@ -1,0 +1,11 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      root:
+        type: string
+        description: "Workspace root directory path"
+  commandFunction:
+    command: wxec
+    args: []
