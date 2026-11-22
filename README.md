@@ -27,7 +27,7 @@ Add `wxec` to your agent's MCP configuration (e.g. `~/.gemini/config/mcp_config.
 ### Installation
 
 ```sh
-git clone https://github.com/KlyneChrysler/wxec.git
+git clone https://github.com/kaeinmotion/wxec.git
 cd wxec && cargo build --release
 cp target/release/wxec ~/.cargo/bin/
 ```
