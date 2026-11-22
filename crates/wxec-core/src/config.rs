@@ -128,6 +128,11 @@ pub fn default_env_allow() -> Vec<String> {
         "GIT_AUTHOR_EMAIL",
         "GIT_COMMITTER_NAME",
         "GIT_COMMITTER_EMAIL",
+        "SSH_AUTH_SOCK",
+        "SSH_AGENT_PID",
+        "GIT_SSH*",
+        "GIT_CONFIG*",
+        "XDG_*",
     ]
     .into_iter()
     .map(str::to_string)

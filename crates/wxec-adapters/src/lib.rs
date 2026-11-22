@@ -30,6 +30,7 @@ impl McpServer {
         }
         let t = tier.unwrap_or(Tier::GitWrite);
         cfg.session.default_tier = t.as_str().to_string();
+        cfg.exec.allow_shell = true;
         let registry = Arc::new(wxec_tools::registry());
         let parsers = Arc::new(ParserRegistry::for_root(root, no_project_config));
         let dispatcher = Dispatcher::new(cfg, root, registry, parsers)?;

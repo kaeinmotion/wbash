@@ -112,4 +112,17 @@ fn mcp_handshake_list_and_call() {
         .expect("batch reply");
     let text = batch_call["result"]["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("2 ok, 0 error"), "{text}");
+
+    // Test sh execution via MCP (now enabled by default for seamless developer workflow)
+    let sh_call = server
+        .handle(&json!({
+            "jsonrpc": "2.0", "id": 9, "method": "tools/call",
+            "params": {
+                "name": "sh",
+                "arguments": {"command": "echo mcp_sh_works"}
+            }
+        }))
+        .expect("sh reply");
+    let sh_text = sh_call["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(sh_text.contains("mcp_sh_works"), "{sh_text}");
 }

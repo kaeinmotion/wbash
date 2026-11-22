@@ -203,7 +203,7 @@ impl Dispatcher {
                                 .get("args")
                                 .and_then(|a| a.get("op"))
                                 .and_then(|v| v.as_str())
-                                .is_some_and(|op| matches!(op, "commit" | "push"));
+                                .is_some_and(|op| matches!(op, "commit" | "push" | "add"));
                         }
                         self.registry
                             .get(ct)
@@ -214,7 +214,7 @@ impl Dispatcher {
         }
         if tool == "git" {
             if let Some(op) = tool_args.get("op").and_then(|v| v.as_str()) {
-                if matches!(op, "commit" | "push") {
+                if matches!(op, "commit" | "push" | "add") {
                     mutating = true;
                 }
             }

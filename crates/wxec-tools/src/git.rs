@@ -65,7 +65,7 @@ impl Tool for GitTool {
         json!({
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["status", "diff", "log", "show", "blame", "branch", "commit", "push"]},
+                "op": {"type": "string", "enum": ["status", "add", "diff", "log", "show", "blame", "branch", "commit", "push"]},
                 "pathspec": {"type": ["string", "array"]},
                 "staged": {"type": "boolean"},
                 "cached": {"type": "boolean"},
@@ -99,6 +99,7 @@ impl Tool for GitTool {
         ensure_repo(ctx)?;
         match a.op.as_str() {
             "status" => status(ctx),
+            "add" => add(ctx, &a),
             "diff" => diff(ctx, &a),
             "log" => log(ctx, &a),
             "show" => show(ctx, &a),
@@ -641,6 +642,26 @@ fn branch(ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
         ));
     }
     r.meta.counts.insert("branches".into(), lines.len() as i64);
+    Ok(r)
+}
+
+fn add(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
+    policy::check_tier(ctx.tier, Tier::GitWrite, "git add")?;
+    let mut args: Vec<String> = vec!["add".to_string()];
+    let paths = pathspecs(a)?;
+    if !paths.is_empty() {
+        args.push("--".to_string());
+        args.extend(paths);
+    } else {
+        args.push("-A".to_string());
+    }
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = git(ctx, &refs).map_err(map_git_err)?;
+    if !out.exit.is_success() {
+        return Err(git_failure("add", &out));
+    }
+    let mut r = ToolResult::new("git", "staged changes".to_string());
+    r.meta.ok = true;
     Ok(r)
 }
 
