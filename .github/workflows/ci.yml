@@ -53,6 +53,8 @@ jobs:
 
   bench-scripted:
     runs-on: ubuntu-latest
+    env:
+      WXEC_ALLOW_CLI: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -66,6 +68,8 @@ jobs:
 
   perf-smoke:
     runs-on: ubuntu-latest
+    env:
+      WXEC_ALLOW_CLI: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

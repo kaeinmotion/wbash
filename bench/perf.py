@@ -59,6 +59,7 @@ def main() -> int:
     env = os.environ.copy()
     env["XDG_CACHE_HOME"] = str(root / ".cache")
     env["XDG_CONFIG_HOME"] = str(root / ".config")
+    env["WXEC_ALLOW_CLI"] = "1"
     try:
         per_dir = 250
         dirs = max(1, args.files // per_dir)

@@ -1400,17 +1400,42 @@ fn print_help() {
     println!("  w x <id>                        expand handle (~id or bare id)");
 }
 
+fn print_mcp_help() {
+    println!(
+        "wxec {} - Token-efficient Model Context Protocol (MCP) server",
+        env!("CARGO_PKG_VERSION")
+    );
+    println!();
+    println!("USAGE:");
+    println!("  wxec [OPTIONS]");
+    println!("  w [OPTIONS]");
+    println!();
+    println!("OPTIONS:");
+    println!("  --root <DIR>         Workspace root directory (defaults to current dir)");
+    println!(
+        "  --tier <TIER>        Session tier: ReadOnly, Edit, WriteWorkspace, Execute, GitWrite"
+    );
+    println!("  --config <FILE>      Custom configuration file path");
+    println!("  --no-project-config  Ignore .wxec.toml in workspace");
+    println!("  -h, --help           Print help");
+    println!("  -V, --version        Print version");
+    println!();
+    println!("NOTE: CLI subcommand mode is disabled. wxec operates strictly as an MCP server over stdio.");
+    println!("Configure in your MCP client (Cursor, Claude Desktop, Cline):");
+    println!("  \"command\": \"wxec\"");
+}
+
 // ---------------------------------------------------------------------------
 // MCP entry
 // ---------------------------------------------------------------------------
 
 pub fn run_mcp(argv: Vec<String>) -> i32 {
     if argv.iter().any(|a| a == "--version" || a == "-V") {
-        println!("w {}", env!("CARGO_PKG_VERSION"));
+        println!("wxec {} (mcp server)", env!("CARGO_PKG_VERSION"));
         return 0;
     }
     if argv.iter().any(|a| a == "--help" || a == "-h") {
-        print_help();
+        print_mcp_help();
         return 0;
     }
     let (global, tool, _rest) = match parse_global(&argv) {
@@ -1421,7 +1446,15 @@ pub fn run_mcp(argv: Vec<String>) -> i32 {
         }
     };
     if tool.is_some() {
-        return run(argv);
+        if std::env::var("WXEC_ALLOW_CLI")
+            .map(|v| v == "1")
+            .unwrap_or(false)
+        {
+            return run(argv);
+        }
+        eprintln!("error: CLI mode is disabled. wxec operates strictly as a Model Context Protocol (MCP) server over stdio.");
+        eprintln!("To connect, configure 'wxec' (or 'w') in your MCP client (Claude Desktop, Cursor, Cline).");
+        return 1;
     }
     let tier = match global.tier.as_deref() {
         Some(t) => match t.parse::<wxec_core::types::Tier>() {

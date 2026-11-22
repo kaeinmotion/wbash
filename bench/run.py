@@ -126,6 +126,7 @@ def prepare(task: dict, w_bin: Path, timeout: int) -> tuple[Path, dict, Path | N
     else:
         workdir = ROOT
     env = os.environ.copy()
+    env["WXEC_ALLOW_CLI"] = "1"
     cargo_bin = Path.home() / ".cargo" / "bin"
     path_parts = [str(w_bin.parent)]
     if cargo_bin.is_dir():
