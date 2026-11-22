@@ -552,4 +552,18 @@ fn test_ergonomic_tool_features() {
     assert!(replace_alias.ok, "{}", replace_alias.text);
     let verify_replace = call(&mut d, "read", json!({"path": "crlf.txt"}));
     assert!(verify_replace.text.contains("custom_replaced"));
+
+    // 21. read and edit with embedded line ranges in path
+    let read_embedded_colon = call(&mut d, "read", json!({"path": "crlf.txt:1-1"}));
+    assert!(read_embedded_colon.ok, "{}", read_embedded_colon.text);
+    assert!(read_embedded_colon.text.contains("1: custom_replaced"));
+
+    let read_embedded_hash = call(&mut d, "read", json!({"path": "crlf.txt#L1-L1"}));
+    assert!(read_embedded_hash.ok, "{}", read_embedded_hash.text);
+
+    // 22. git branch creation and checkout
+    let git_create_branch = call(&mut d, "git", json!({"op": "branch", "branch": "feature-test"}));
+    assert!(git_create_branch.ok, "{}", git_create_branch.text);
+    let git_checkout = call(&mut d, "git", json!({"op": "checkout", "branch": "feature-test"}));
+    assert!(git_checkout.ok, "{}", git_checkout.text);
 }

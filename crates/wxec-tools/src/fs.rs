@@ -350,6 +350,32 @@ impl Tool for ReadTool {
             "read",
             "pass path plus optional lines, symbol, outline, expect_hash, force",
         )?;
+        if a.lines.is_none() && !ctx.resolve(&a.path, false).map(|p| p.exists()).unwrap_or(false) {
+            let split_spec = if let Some((file_part, line_part)) = a.path.rsplit_once('#') {
+                if let Some(rest) = line_part.strip_prefix('L') {
+                    let cleaned = rest.replace('L', "").replace('-', ":");
+                    Some((file_part.to_string(), cleaned))
+                } else {
+                    None
+                }
+            } else if let Some((file_part, line_part)) = a.path.rsplit_once(':') {
+                if !file_part.is_empty()
+                    && line_part
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
+                {
+                    Some((file_part.to_string(), line_part.to_string()))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some((f, l)) = split_spec {
+                a.path = f;
+                a.lines = Some(l);
+            }
+        }
         if a.lines.is_none() && (a.start_line.is_some() || a.end_line.is_some()) {
             let s = a.start_line.unwrap_or(1);
             let e = a.end_line.map(|v| v.to_string()).unwrap_or_default();
@@ -934,7 +960,35 @@ impl Tool for EditTool {
             "edit",
             "use one of find+replace, lines+replace, create+content, delete",
         )?;
-        let abs = ctx.resolve(&a.path, false)?;
+        let mut path_str = a.path.clone();
+        let mut lines = a.lines.clone();
+        if lines.is_none() && !ctx.resolve(&path_str, false).map(|p| p.exists()).unwrap_or(false) {
+            let split_spec = if let Some((file_part, line_part)) = path_str.rsplit_once('#') {
+                if let Some(rest) = line_part.strip_prefix('L') {
+                    let cleaned = rest.replace('L', "").replace('-', ":");
+                    Some((file_part.to_string(), cleaned))
+                } else {
+                    None
+                }
+            } else if let Some((file_part, line_part)) = path_str.rsplit_once(':') {
+                if !file_part.is_empty()
+                    && line_part
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
+                {
+                    Some((file_part.to_string(), line_part.to_string()))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some((f, l)) = split_spec {
+                path_str = f;
+                lines = Some(l);
+            }
+        }
+        let abs = ctx.resolve(&path_str, false)?;
         let display = ctx.rel(&abs);
 
         let mut find = a.find.clone();
@@ -988,7 +1042,6 @@ impl Tool for EditTool {
             }
         }
 
-        let mut lines = a.lines.clone();
         if lines.is_none() && (a.start_line.is_some() || a.end_line.is_some()) {
             let s = a.start_line.unwrap_or(1);
             let e = a.end_line.map(|v| v.to_string()).unwrap_or_default();

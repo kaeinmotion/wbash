@@ -235,7 +235,7 @@ complete git lifecycle management with structured diff compaction.
 
 | parameter | type | default | description |
 | :--- | :---: | :---: | :--- |
-| `op` | string | *required* | operation: `"status"`, `"diff"`, `"log"`, `"show"`, `"blame"`, `"branch"`, `"commit"`, `"push"`, `"pull"`, `"tag"`, `"tags"`, `"remote"`, `"custom"` |
+| `op` | string | *required* | operation: `"status"`, `"diff"`, `"log"`, `"show"`, `"blame"`, `"branch"`, `"checkout"`, `"switch"`, `"commit"`, `"push"`, `"pull"`, `"tag"`, `"tags"`, `"remote"`, `"custom"` |
 | `pathspec` / `path` | string | `null` | file path filter or tag name |
 | `staged` / `cached` | boolean | `false` | view staged changes in diff |
 | `context` | integer | `3` | unified diff context lines (`-U <n>`) |

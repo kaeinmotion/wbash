@@ -122,7 +122,8 @@ impl Tool for GitTool {
             "log" => log(ctx, &a),
             "show" => show(ctx, &a),
             "blame" => blame(ctx, &a),
-            "branch" => branch(ctx),
+            "branch" => branch(ctx, &a),
+            "checkout" | "switch" => checkout(ctx, &a),
             "commit" => commit(ctx, &a),
             "push" => push(ctx, &a),
             "pull" => pull(ctx, &a),
@@ -648,45 +649,90 @@ fn blame(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
     Ok(r)
 }
 
-fn branch(ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
-    let out = git(
-        ctx,
-        &[
-            "branch",
-            "--no-color",
-            "--format=%(HEAD)%(refname:short)%09%(upstream:short)",
-        ],
-    )
-    .map_err(map_git_err)?;
+fn branch(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
+    if let Some(b) = &a.branch {
+        policy::check_tier(ctx.tier, Tier::GitWrite, "git branch")?;
+        reject_dash_arg("branch", b)?;
+        let out = git(ctx, &["branch", b.as_str()]).map_err(map_git_err)?;
+        let mut r = ToolResult::new("git", format!("created branch {b}"));
+        r.meta.ok = out.exit.is_success();
+        r.meta.exit = Some(out.exit);
+        if !r.meta.ok {
+            let errs = extract_git_errors(&out);
+            for err in errs {
+                r.must(err);
+            }
+        }
+        Ok(r)
+    } else {
+        let out = git(
+            ctx,
+            &[
+                "branch",
+                "--no-color",
+                "--format=%(HEAD)%(refname:short)%09%(upstream:short)",
+            ],
+        )
+        .map_err(map_git_err)?;
+        if !out.exit.is_success() {
+            return Err(git_failure("branch", &out));
+        }
+        let stdout = out.stdout_str();
+        let lines: Vec<&str> = stdout.lines().collect();
+        let mut r = ToolResult::new("git", format!("{} branches", lines.len()));
+        for line in &lines {
+            let (marker, rest) = line.split_at(1.min(line.len()));
+            let mut parts = rest.split('\t');
+            let name = parts.next().unwrap_or("");
+            let upstream = parts.next().unwrap_or("");
+            let current = marker == "*";
+            let line = if upstream.is_empty() {
+                format!("{} {name}", if current { "*" } else { " " })
+            } else {
+                format!("{} {name} -> {upstream}", if current { "*" } else { " " })
+            };
+            let class = if current {
+                wxec_core::types::ItemClass::High
+            } else {
+                wxec_core::types::ItemClass::Low
+            };
+            r.push(wxec_core::types::Item::new(
+                class,
+                if current { 8.0 } else { 3.0 },
+                vec![line],
+            ));
+        }
+        r.meta.counts.insert("branches".into(), lines.len() as i64);
+        Ok(r)
+    }
+}
+
+fn checkout(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
+    policy::check_tier(ctx.tier, Tier::GitWrite, "git checkout")?;
+    let target = a
+        .branch
+        .as_ref()
+        .or(a.reference.as_ref())
+        .or(a.path.as_ref())
+        .ok_or_else(|| WErr::invalid_args("checkout requires branch or ref", "branch=<name>"))?;
+    reject_dash_arg("branch", target)?;
+    let mut out = git(ctx, &["checkout", target.as_str()]).map_err(map_git_err)?;
     if !out.exit.is_success() {
-        return Err(git_failure("branch", &out));
+        if let Ok(b_out) = git(ctx, &["checkout", "-b", target.as_str()]) {
+            if b_out.exit.is_success() {
+                out = b_out;
+            }
+        }
     }
-    let stdout = out.stdout_str();
-    let lines: Vec<&str> = stdout.lines().collect();
-    let mut r = ToolResult::new("git", format!("{} branches", lines.len()));
-    for line in &lines {
-        let (marker, rest) = line.split_at(1.min(line.len()));
-        let mut parts = rest.split('\t');
-        let name = parts.next().unwrap_or("");
-        let upstream = parts.next().unwrap_or("");
-        let current = marker == "*";
-        let line = if upstream.is_empty() {
-            format!("{} {name}", if current { "*" } else { " " })
-        } else {
-            format!("{} {name} -> {upstream}", if current { "*" } else { " " })
-        };
-        let class = if current {
-            wxec_core::types::ItemClass::High
-        } else {
-            wxec_core::types::ItemClass::Low
-        };
-        r.push(wxec_core::types::Item::new(
-            class,
-            if current { 8.0 } else { 3.0 },
-            vec![line],
-        ));
+    let mut r = ToolResult::new("git", format!("checkout {target}"));
+    r.meta.ok = out.exit.is_success();
+    r.meta.exit = Some(out.exit);
+    if !r.meta.ok {
+        let errs = extract_git_errors(&out);
+        for err in errs {
+            r.must(err);
+        }
     }
-    r.meta.counts.insert("branches".into(), lines.len() as i64);
     Ok(r)
 }
 
