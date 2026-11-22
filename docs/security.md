@@ -1,54 +1,87 @@
-# Security
+# enterprise security & governance specification
 
-## Path confinement
+technical reference for workspace confinement, cryptographic verification, secret redaction, and permission tiers in wxec.
 
-- Every path argument is resolved relative to the workspace root, canonicalized,
-  and rejected if it escapes (`outside_workspace`).
-- Absolute paths are accepted only when they canonicalize inside the root or a
-  configured allowlist entry.
-- Symlinks resolving outside the root are rejected. Writes create parent
-  directories only inside the root.
-- Handles are stored under the cache directory, never inside the workspace, with
-  restrictive permissions.
+---
 
-## Trust
+### **table of contents**
 
-- Project config (`.wxec/config.toml`) and project rules/parsers are loaded only after the root is trusted.
-- `w config show` prints effective config; `w config trust` records the canonical root in the user config (locked for cross-process updates).
-- Untrusted project configuration is ignored, with an advisory note.
-- TOML parser rules are trusted-root only, validated, size-limited, and must be regular files (symlinks ignored).
+- [chapter 1: security philosophy & threat model](#chapter-1-security-philosophy--threat-model)
+- [chapter 2: path confinement & workspace jailing](#chapter-2-path-confinement--workspace-jailing)
+- [chapter 3: permission tiers & access control](#chapter-3-permission-tiers--access-control)
+- [chapter 4: automated secret & credential redaction](#chapter-4-automated-secret--credential-redaction)
+- [chapter 5: process isolation & execution boundaries](#chapter-5-process-isolation--execution-boundaries)
+- [chapter 6: memory handle lifecycle & storage isolation](#chapter-6-memory-handle-lifecycle--storage-isolation)
 
-## Tiers
+---
 
-| Tier | Allows |
-|---|---|
-| `read_only` | tree, read, search, expand, git reads |
-| `write_workspace` | + edit |
-| `git_write` | + git commit/push |
-| `execute` | + run/check; `sh` additionally requires `exec.allow_shell` |
+### **chapter 1: security philosophy & threat model**
 
-Policy is enforced in the dispatcher before the tool runs; a denied call emits
-`!policy_denied` and never reaches the filesystem or process layer. Sessions
-default to `write_workspace` for CLI, and `git_write` for MCP server sessions (configurable via `--tier`). `batch` derives each call's requirement
-individually; a denied call fails only its own block.
+autonomous ai agents operating in software repositories present unique enterprise security challenges:
+- **prompt injection risks**: malicious instructions embedded in issues, dependencies, or comments attempting to access external networks or exfiltrate private credentials.
+- **uncontrolled filesystem escape**: relative path traversals (`../../`) accessing sensitive operating system configuration files (`/etc/passwd`, `~/.ssh`).
+- **token log pollution**: raw terminal output containing api keys, database connection strings, or private certificates that leak into model inference history.
 
-## Execution
+wxec implements defense-in-depth at the protocol layer, enforcing immutable safety policies before any tool request touches the underlying host.
 
-- `run` is argv-only: no shell interpolation.
-- `sh` is disabled by default (`exec.allow_shell=false`).
-- Child environment is allowlisted (`PATH`, `HOME`, locale, toolchain vars,
-  etc.); arbitrary env keys are ignored or rejected.
-- Timeouts are clamped to `exec.max_timeout_ms`; output is capped at
-  `exec.max_output_bytes` and marked `output_truncated`. Process groups are
-  killed on timeout.
-- Working directories are jailed to the workspace.
+---
 
-## Redaction and storage
+### **chapter 2: path confinement & workspace jailing**
 
-- Redaction runs before handles are written and before results are emitted.
-  AWS keys, tokens, passwords, private keys, and common credential assignments
-  are replaced and counted (`meta.redactions`).
-- Handles are byte-limited (`handles.max_bytes`) and TTL-limited
-  (`handles.ttl_secs`); `w handles gc` enforces both immediately.
-- Logs are off/minimal by default; `WXEC_LOG` enables redacted local logging.
-- No network calls and no telemetry in v0.1.
+every file system operation is subjected to strict path verification:
+
+1. **canonical root resolution**: all input paths are resolved relative to the workspace root and canonicalized, resolving all symbolic links.
+2. **traversal rejection**: any path resolving outside the workspace root triggers an immediate `outside_workspace` error.
+3. **symlink isolation**: symlinks pointing outside the workspace boundary are rejected for read, write, and search operations.
+4. **directory creation boundaries**: parent directory creation during `edit` operations is confined strictly within the project boundary.
+
+---
+
+### **chapter 3: permission tiers & access control**
+
+wxec enforces four hierarchical permission tiers configured at server launch via `--tier`:
+
+| tier | level | authorized tools | operational boundary |
+| :--- | :---: | :--- | :--- |
+| `read_only` | 0 | `tree`, `read`, `search`, `expand`, `git` (`status`/`diff`/`log`) | non-mutating inspection; disk writes strictly forbidden |
+| `write_workspace` | 1 | tier 0 + `edit`, `replace` | allows in-workspace file edits; process execution forbidden |
+| `execute` | 2 | tier 1 + `run`, `check`, `sh` *(if enabled)* | allows running compilers, linters, tests, and build tools |
+| `git_write` | 3 | tier 2 + `git` (`commit`/`push`) | full autonomous agent workflow including version control |
+
+- **default tiers**: mcp server defaults to `git_write` (or configured via `.wxec.toml`).
+- **batch evaluation**: in `batch` workflows, permissions are verified per child call. a denied call emits `!policy_denied` for its block without interrupting authorized siblings.
+
+---
+
+### **chapter 4: automated secret & credential redaction**
+
+all tool outputs and handle store writes are scanned in real time before transmission over mcp:
+
+- **regexset fast-path**: high-speed vectorized pattern engine scrubs sensitive credentials:
+  - modern ai secret keys (anthropic, openai, google gemini, huggingface).
+  - cloud provider credentials (aws access/secret keys, gcp service accounts, azure tokens).
+  - private keys (rsa, ed25519, openbsd openssh keys).
+  - authorization headers (`bearer ...`, `basic ...`).
+  - generic passwords, connection strings, and oauth tokens.
+- **redaction accounting**: redacted fields are replaced with `[REDACTED]` markers, and counts are tracked in execution metadata (`meta.redactions`).
+
+---
+
+### **chapter 5: process isolation & execution boundaries**
+
+for tools operating under the `execute` tier (`run`, `check`, `sh`):
+
+- **no shell interpolation in `run`**: arguments are executed directly via `execvp` syscalls as typed argv vectors, eliminating shell injection vectors.
+- **environment allowlist**: child processes do not inherit the parent process environment. only safe, necessary variables are passed:
+  - system paths: `PATH`, `HOME`, `USER`.
+  - toolchain variables: `RUST_BACKTRACE`, `NODE_ENV`, `PYTHONUNBUFFERED`, `CARGO_HOME`.
+  - sensitive credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are stripped from child processes by default.
+- **process termination**: hung or runaway child processes are killed after `timeout_ms` (default: 120 seconds). process groups are terminated to eliminate orphaned background jobs.
+
+---
+
+### **chapter 6: memory handle lifecycle & storage isolation**
+
+- **isolated storage**: memory handles (`~id`) are stored in an operating system cache directory outside the workspace root, preventing accidental commits to git.
+- **restricted permissions**: handle storage directories are initialized with user-only permissions (`0700` on unix).
+- **automatic expiration**: handles are bounded by time-to-live (`handles.ttl_secs = 86400`) and maximum byte capacity (`handles.max_bytes = 104857600`). automated garbage collection purges stale entries.

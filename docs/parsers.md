@@ -1,65 +1,85 @@
-# Output parsers
+# output parsers & diagnostic normalization
 
-`run` and `check` map command output to normalized `Diagnostic` and
-`TestResult` records. Parsing is selected by argv and applied to stdout; stderr
-is scanned as a fallback. Parsing may use injected machine-readable flags/streams; user-visible output,
-compact tails, and stored full handles are derived from user-relevant output with
-injected machine records stripped when not required to preserve signals. Lossless
-access remains available via handles/expand as applicable.
+reference guide for built-in diagnostic extractors, stream parsers, and custom toml parser definitions in wxec.
 
-## Native parsers
+---
 
-| Parser | Matches | Extracts |
-|---|---|---|
-| `cargo` | `cargo test`/`check`/`build`/`clippy` | JSON `compiler-message` diagnostics (`E####` codes, spans); JSON libtest events; human `test ... ok/FAILED` and panic messages |
-| `pytest` | `pytest`/`py.test` | `FAILED id - message`, pass/fail summary |
-| `jest` | `jest` | `testResults[].assertionResults[]` JSON (name, status, first failure line, duration) |
-| `vitest` | `vitest` | same JSON shape |
-| `tsc` | `tsc` | `file(line,col): error TS####: message` |
-| `eslint` | `eslint` | JSON formatter messages (file, line/col, rule id, severity) |
-| `ruff` | `ruff check` | JSON diagnostics (filename, row/col, code, message) |
-| `go-test` | `go test` | `--- PASS/FAIL: Test...` and package summaries |
-| `go-vet` | `go vet` | `file.go:line:col: message` |
+### **table of contents**
 
-If no parser matches, `run` uses generic compaction (§7.5): ANSI stripping,
-whitespace normalization, error-line preservation, head+tail windows, and a
-`# parse_fallback` advisory. Exit code, duration, and must-keep errors are still
-emitted.
+- [chapter 1: stream parsing architecture](#chapter-1-stream-parsing-architecture)
+- [chapter 2: native built-in parsers](#chapter-2-native-built-in-parsers)
+- [chapter 3: fallback compaction heuristics](#chapter-3-fallback-compaction-heuristics)
+- [chapter 4: custom toml parser definitions](#chapter-4-custom-toml-parser-definitions)
 
-## TOML parsers (v1)
+---
 
-User rules: `~/.config/wxec/rules.d/*.toml` or `~/.config/wxec/parsers.d/*.toml`.
-Project rules: `<root>/.wxec/rules.d/*.toml` or `<root>/.wxec/parsers.d/*.toml` (trusted root only, disabled by `--no-project-config`).
-Lower `priority` wins among matches.
+### **chapter 1: stream parsing architecture**
 
+when `check` or `run` executes compilers, test runners, or linters, raw stdout/stderr can emit tens of thousands of lines. wxec intercepts output streams, filters boilerplate noise (such as progress indicators and passing test lines), and extracts structured `Diagnostic` and `TestResult` records.
+
+critical failure lines, assertion diffs, and compiler error spans are prioritized in the response, while the unedited stream is preserved in a memory handle (`full: ~id`).
+
+---
+
+### **chapter 2: native built-in parsers**
+
+wxec includes zero-dependency native parsers compiled into the binary:
+
+| parser | matching commands | extracted signals |
+| :--- | :--- | :--- |
+| `cargo` | `cargo test`, `check`, `build`, `clippy` | json compiler diagnostics (`E####` error codes, spans), libtest event streams, panic messages, failing assertions |
+| `pytest` | `pytest`, `py.test`, `python -m pytest` | `FAILED test_file.py::test_fn - message`, traceback frames, pass/fail summaries |
+| `jest` / `vitest` | `jest`, `vitest`, `npm test` | test suite status, failed assertion diffs, file and line locations |
+| `tsc` | `tsc`, `npx tsc` | typescript compiler errors: `file(line,col): error TS####: message` |
+| `eslint` | `eslint`, `npx eslint` | file path, rule identifier, severity, line/column coordinates |
+| `ruff` | `ruff check` | python linter diagnostics, error codes, suggested fixes |
+| `go-test` | `go test` | package status, `--- FAIL: TestName` traces, assertion outputs |
+| `go-vet` | `go vet` | static analysis warnings: `file.go:line:col: message` |
+
+---
+
+### **chapter 3: fallback compaction heuristics**
+
+if a command does not match any specialized parser, wxec applies generic stream compaction:
+- **ansi stripping**: removes all terminal color codes and cursor movement escape sequences.
+- **whitespace normalization**: condenses blank lines and trailing spaces.
+- **error line preservation**: scans for keywords (`error:`, `fatal:`, `failed:`, `panic:`, `exception:`) and prioritizes them in the output budget.
+- **head + tail windowing**: emits initial setup lines, an elision marker `...+N lines (~id)`, and the final summary footer.
+- **full handle generation**: stores complete unedited output in `full: ~id` for lossless inspection via `expand`.
+
+---
+
+### **chapter 4: custom toml parser definitions**
+
+teams can register custom parser rules for proprietary test frameworks or internal build tools without recompiling wxec:
+
+- **user rules**: `~/.config/wxec/parsers.d/*.toml`
+- **project rules**: `<workspace-root>/.wxec/parsers.d/*.toml` (requires trusted root)
+
+#### **example toml parser definition (`demo-test.toml`)**
 ```toml
 schema_version = 1
-name = "demo"
+name = "custom-test-runner"
 priority = 100
 
 [match]
-argv0 = "demo"
-argv_contains = ["run"]
+argv0 = "mytest"
+argv_contains = ["--run"]
 
 [inject]
-args = ["--json"]
+args = ["--format=jsonl"]
 
 [parse]
-format = "jsonl"            # json | jsonl
+format = "jsonl"
 
 [map.test_result]
-id = "$.name"
-status = "$.state"
-message = "$.msg"
+id = "$.test_name"
+status = "$.result"
+message = "$.error_details"
 
 [map.status]
-ok = "pass"
-bad = "fail"
+ok = "passed"
+bad = "failed"
 ```
 
-- `match.argv0` is required; `argv_contains` is optional.
-- Injection appends missing arguments once; they are never duplicated.
-- `format` supports `json` and `jsonl`.
-- Rule files must be regular (non-symlink) TOML files, size-limited and validated; invalid rules are ignored with a startup warning.
-- Project rules are loaded only for trusted roots. Rules never override built-in parsers for the same argv0 unless priority is lower.
-- Declarative parsers cannot execute code. WASM parsers are deferred to v2.
+- **declarative safety**: toml parsers cannot execute arbitrary shell code; they only map json fields to normalized diagnostics.

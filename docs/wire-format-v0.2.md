@@ -1,118 +1,147 @@
-# Wire format `lean@0.2`
+# wire format specification (lean@0.2)
 
-Derived from `docs/spec-v3.md` §6. Normative summary of the implemented format.
+formal specification for the wxec model context protocol (mcp) wire protocol, token estimation heuristics, and handle store mechanics.
 
-## Grammar
+---
 
+### **table of contents**
+
+- [chapter 1: design principles & wire grammar](#chapter-1-design-principles--wire-grammar)
+- [chapter 2: record types & compression semantics](#chapter-2-record-types--compression-semantics)
+- [chapter 3: deterministic token estimation & budget fitting](#chapter-3-deterministic-token-estimation--budget-fitting)
+- [chapter 4: json serialization format](#chapter-4-json-serialization-format)
+- [chapter 5: wire protocol examples](#chapter-5-wire-protocol-examples)
+
+---
+
+### **chapter 1: design principles & wire grammar**
+
+the wxec wire format is engineered for maximum token density while preserving actionable error messages and stack traces.
+
+#### **formal grammar (ebnf)**
 ```text
-response := header LF body?
-header   := summary
-body     := (line LF)* line?
-line     := record | elision | advisory | error | detail
-elision  := "...+" N SP unit SP "(" handle ")"
-advisory := "# " text
-error    := "!" code SP message ["." SP hint]
-handle   := "~" [a-z0-9]{1,8}
+response    := header LF body?
+header      := summary
+body        := (record LF)* record?
+record      := content | elision | advisory | error | diagnostic
+elision     := "...+" integer SP ("lines" | "bytes" | "symbols") SP "(" handle ")"
+advisory    := "# " text
+error       := "!" error_code SP message ("." SP hint)?
+handle      := "~" [a-z0-9]{1,8}
 ```
 
-UTF-8, `\n` only, final newline required, no ANSI/CSI, no trailing whitespace,
-no blank separator lines. Output is deterministic for fixed inputs and state.
+#### **invariants**
+- utf-8 encoded, newline-separated (`\n` only), with a guaranteed trailing newline.
+- zero ansi/csi escape codes; zero trailing whitespace; zero redundant blank lines.
+- line 1 is universally reserved for count-bearing summary headers.
 
-## Rules
+---
 
-- Header is always line 1 and carries tool-specific counts/status/exit/duration.
-- Omitted content is represented explicitly: `...+N lines (~id)`,
-  `...+N more (~id)`, or `...+N bytes (~id)`. Every elision resolves through
-  `expand` to the exact omitted payload until TTL/cap eviction.
-- Error, failure, exit, timeout, redaction, and security records are must-keep:
-  the budget fitter emits them even when it exceeds the budget, then appends
-  `# budget_exceeded_must_keep`. On error/failure paths, compaction prioritizes
-  error signals, failing-test facts, error-tied context/frames, and terminal
-  summaries; warning-only bodies are collapsed/counted rather than emitted.
-- Paths are workspace-relative with `/`. Indentation is semantic only (tree
-  depth, outline nesting).
-- Durations: `Nms` below 10s, otherwise `N.Ns`.
-- Errors use `!code message. hint` and are followed by a newline.
-- `unchanged` and diff bases are emitted only after hash verification of the
-  current scope.
-- Lean `verbosity=minimal` (default): on clean success, omit redundant boilerplate
-  and keep count-bearing summaries; failures/warnings preserve must-keep signals.
-  `edit` confirmations default to `edited <path> (+ins -del)`.
+### **chapter 2: record types & compression semantics**
 
-## Tokens and budgets
+1. **headers**: line 1 always states the high-level outcome:
+   - clean read: `path/to/file (N lines, b3:hash)`
+   - unchanged verification: `unchanged path/to/file (b3:hash) expand ~id`
+   - search: `N files, M matches`
+   - check/run: `ok, N passed, M warnings` or `exit 1, N failed`
+2. **elisions**: omitted sections are explicitly cataloged: `...+N lines (~id)`. every elision points to an addressable handle in the lossless store.
+3. **must-keep records**: compilation errors, failed assertions, panics, and security alerts bypass budget truncations. when token budgets are tight, ambient lines are dropped, but critical failure paths are preserved.
 
-Runtime estimation is deterministic: `max(ceil(chars/4), lines/2)`. Default
-budgets are 600 tokens for most tools, 800 for `run`/`check`/`sh`, and 1600 for
-`batch`. An explicit budget overrides the default and must be in `64..=32768`.
+---
 
-## JSON mode
+### **chapter 3: deterministic token estimation & budget fitting**
 
-Selected with `--format json` (or `"format":"json"` in tool args).
+to prevent sudden context window overflow, wxec computes deterministic token weights:
+
+$$\text{estimated tokens} = \max\left(\left\lceil\frac{\text{characters}}{4}\right\rceil, \left\lfloor\frac{\text{lines}}{2}\right\rfloor\right)$$
+
+#### **default token budgets**
+- standard inspection tools (`read`, `search`, `tree`): **600 tokens**.
+- execution and compilation tools (`check`, `run`, `sh`): **800 tokens**.
+- composite batch operations (`batch`): **1600 tokens**.
+- explicit limits: any client can supply `budget: N` within the bounds `64..=32768`.
+
+---
+
+### **chapter 4: json serialization format**
+
+when invoked with `format: "json"`, wxec emits a normalized envelope:
 
 ```json
 {
   "ok": true,
   "tool": "search",
   "meta": {
-    "duration_ms": 12,
-    "counts": {"files": 3, "matches": 7},
+    "duration_ms": 11,
+    "counts": {
+      "files": 2,
+      "matches": 4
+    },
     "redactions": 0,
     "notes": []
   },
-  "data": {},
+  "data": {
+    "matches": [
+      {
+        "file": "crates/wxec-core/src/lib.rs",
+        "line": 42,
+        "content": "pub fn execute() -> Result<()> {"
+      }
+    ]
+  },
   "diagnostics": [],
-  "handles": [{"ref": "~s1", "kind": "search", "bytes": 4096, "hash": "b3:..."}],
+  "handles": [
+    {
+      "ref": "~s1",
+      "kind": "search",
+      "bytes": 2048,
+      "hash": "b3:4f8e..."
+    }
+  ],
   "errors": []
 }
 ```
 
-Top-level key order is stable. `meta.ok` is omitted (top-level `ok` is
-authoritative). Errors carry `{code, message, hint?}` and `ok=false`; the CLI
-exits nonzero for tool errors and for failed `check` exit statuses; for `run`/`sh`
-the CLI propagates the child exit code (timeout `124`).
+---
 
-## Examples
+### **chapter 5: wire protocol examples**
 
+#### **directory tree inspection (`tree`)**
 ```text
-# tree
 ./ (4 files, 2 dirs)
 src/
-  config.rs
+  lib.rs
   main.rs
 tests/
-  basic.rs
+  integration.rs
 Cargo.toml
+```
 
-# read (first view)
-src/config.rs (5 lines, b3:8a581f63fd7b8007)
-1: //! Config.
-2: pub fn parse_config(path: &str) -> Result<String, String> {
+#### **initial file read (`read`)**
+```text
+src/lib.rs (4 lines, b3:9a12c8e)
+1: pub fn add(a: i32, b: i32) -> i32 {
+2:     a + b
+3: }
+```
 
-# read (verified unchanged)
-unchanged src/config.rs (b3:8a581f63fd7b8007) expand ~1
+#### **verified unchanged read (session ledger hit)**
+```text
+unchanged src/lib.rs (b3:9a12c8e) expand ~h101
+```
 
-# read (external change)
-src/config.rs diff (b3:8a581f63fd7b8007)
-@@ -3,3 +3,4 @@
- 3:     if path.is_empty() { return Err("empty".into()); }
- 4:     Ok(path.to_string())
- 5: }
-+6: // added
-
-# search
+#### **search results (`search`)**
+```text
 2 files, 2 matches
-src/config.rs:2: pub fn parse_config(path: &str) -> Result<String, String> {
-src/main.rs:4: let _ = config::parse_config("x");
+src/lib.rs:1: pub fn add(a: i32, b: i32) -> i32 {
+tests/integration.rs:5: assert_eq!(add(2, 2), 4);
+```
 
-# run failure
-exit 101, 43ms, 1 passed, 1 failed
+#### **test failure diagnostic (`check kind="test"`)**
+```text
+exit 101, 38ms, 1 passed, 1 failed
 test result: FAILED. 1 passed; 1 failed
-FAIL fails
-full: ~r7
-
-# run/check success (counts when known)
-exit 0, 12 passed, 2 warnings
-
-# error
-!ambiguous_anchor 2 matches in dup.txt at 1:1, 2:1. try: w edit path=dup.txt lines=1:1 replace="..."
+FAIL tests::test_overflow
+assertion `left == right` failed: left: 4, right: 5
+full: ~r12
 ```
