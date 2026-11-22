@@ -76,8 +76,8 @@ impl Tool for CheckTool {
         )?;
         let kind = match a.kind.to_ascii_lowercase().as_str() {
             "all" | "check" => "all".to_string(),
-            "build" => "build".to_string(),
-            "lint" | "lints" => "lint".to_string(),
+            "build" | "compile" => "build".to_string(),
+            "lint" | "lints" | "clippy" | "fmt" => "lint".to_string(),
             "types" | "type" | "typecheck" => "types".to_string(),
             "test" | "tests" => "test".to_string(),
             other => {

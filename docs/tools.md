@@ -141,8 +141,8 @@ surgical code editor utilizing exact literal matching, line-range splices, or fi
 | `replace` / `replacement` | string | `null` | drop-in replacement content |
 | `lines` | string | `null` | line range to splice (`"A:B"` or `"A-B"`) |
 | `content` | string | `null` | replacement or initial content |
-| `create` | boolean | `false` | create file; fails if file already exists |
-| `overwrite` | boolean | `false` | replace entire file contents |
+| `create` | boolean | `false` | create new file only; fails if file already exists (unless overwrite=true) |
+| `overwrite` | boolean | `false` | explicit overwrite flag (optional when content is passed to update existing file) |
 | `delete` | boolean | `false` | delete specified file |
 | `expect_hash` | string | `null` | reject edit if current file hash does not match |
 
@@ -184,7 +184,7 @@ intelligent project compiler and diagnostic runner with automatic build system d
 
 | parameter | type | default | description |
 | :--- | :---: | :---: | :--- |
-| `kind` | string | `"all"` | verification scope: `"test"`, `"build"`, `"lint"`, `"type"`, or `"all"` |
+| `kind` | string | `"all"` | verification scope: `"test"`, `"build"` (alias: `compile`), `"lint"` (aliases: `clippy`, `fmt`), `"type"`, or `"all"` |
 | `path` | string | `"."` | sub-package or project root directory |
 
 - **behavior**:
@@ -235,16 +235,19 @@ complete git lifecycle management with structured diff compaction.
 
 | parameter | type | default | description |
 | :--- | :---: | :---: | :--- |
-| `op` | string | *required* | operation: `"status"`, `"diff"`, `"log"`, `"show"`, `"blame"`, `"branch"`, `"commit"`, `"push"` |
-| `pathspec` / `path` | string | `null` | file path filter |
+| `op` | string | *required* | operation: `"status"`, `"diff"`, `"log"`, `"show"`, `"blame"`, `"branch"`, `"commit"`, `"push"`, `"pull"`, `"tag"`, `"tags"`, `"remote"`, `"custom"` |
+| `pathspec` / `path` | string | `null` | file path filter or tag name |
 | `staged` / `cached` | boolean | `false` | view staged changes in diff |
 | `context` | integer | `3` | unified diff context lines (`-U <n>`) |
 | `stat` | boolean | `false` | include diffstat summary |
-| `msg` / `message` | string | `null` | commit message |
+| `msg` / `message` | string | `null` | commit message or annotated tag message |
 | `all` / `auto_stage` | boolean | `false` | automatically stage tracked modified files during commit |
 | `limit` | integer | `null` | limit log commit entries or blame lines |
 | `remote` | string | `null` | git remote name (default: `"origin"`) |
 | `branch` | string | `null` | git branch name |
+| `tags` | boolean | `false` | include `--tags` when running `push` |
+| `rebase` | boolean | `false` | use `--rebase` when running `pull` |
+| `args` | array | `null` | explicit argument list when using `op="custom"` |
 
 ---
 
@@ -258,7 +261,7 @@ executes up to 16 heterogeneous tool calls in a single round-trip turn.
 
 | parameter | type | default | description |
 | :--- | :---: | :---: | :--- |
-| `calls` | array | *required* | list of call objects: `[{"tool": "name", "args": {...}}]` |
+| `calls` | array | *required* | list of call objects: `[{"tool": "name", "args": {...}}]` (aliases: `params`, `parameters`, `input`) |
 | `stop_on_error` | boolean | `false` | halt subsequent calls immediately if any step fails |
 
 - **behavior**:

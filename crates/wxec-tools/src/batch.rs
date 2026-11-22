@@ -30,7 +30,13 @@ struct BatchArgs {
 struct BatchCall {
     #[serde(alias = "name")]
     tool: String,
-    #[serde(default = "empty_obj", alias = "arguments")]
+    #[serde(
+        default = "empty_obj",
+        alias = "arguments",
+        alias = "params",
+        alias = "parameters",
+        alias = "input"
+    )]
     args: Value,
 }
 

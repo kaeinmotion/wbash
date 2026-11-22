@@ -492,4 +492,42 @@ fn test_ergonomic_tool_features() {
         json!({"op": "commit", "msg": "test commit with msg alias", "stage": true}),
     );
     assert!(git_commit_msg.ok, "{}", git_commit_msg.text);
+
+    // 15. git tag listing and creation
+    let git_tag_create = call(
+        &mut d,
+        "git",
+        json!({"op": "tag", "ref": "v1.0.0", "message": "release 1.0"}),
+    );
+    assert!(git_tag_create.ok, "{}", git_tag_create.text);
+    let git_tags_list = call(&mut d, "git", json!({"op": "tags"}));
+    assert!(git_tags_list.ok, "{}", git_tags_list.text);
+    assert!(git_tags_list.text.contains("v1.0.0"));
+
+    // 16. git remote op
+    let git_remote = call(&mut d, "git", json!({"op": "remote"}));
+    assert!(git_remote.ok, "{}", git_remote.text);
+
+    // 17. edit with content on existing file (auto overwrite when create is not specified)
+    let edit_overwrite = call(
+        &mut d,
+        "edit",
+        json!({"path": "crlf.txt", "content": "overwritten content"}),
+    );
+    assert!(edit_overwrite.ok, "{}", edit_overwrite.text);
+    let verify_read = call(&mut d, "read", json!({"path": "crlf.txt"}));
+    assert!(verify_read.text.contains("overwritten content"));
+
+    // 18. batch with params/input aliases
+    let batch_call = call(
+        &mut d,
+        "batch",
+        json!({
+            "calls": [
+                {"tool": "tree", "params": {"depth": 1}},
+                {"name": "read", "input": {"path": "crlf.txt"}}
+            ]
+        }),
+    );
+    assert!(batch_call.ok, "{}", batch_call.text);
 }

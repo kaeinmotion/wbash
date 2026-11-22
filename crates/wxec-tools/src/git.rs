@@ -63,6 +63,12 @@ struct GitArgs {
     branch: Option<String>,
     #[serde(default)]
     set_upstream: bool,
+    #[serde(default)]
+    tags: bool,
+    #[serde(default)]
+    rebase: bool,
+    #[serde(default)]
+    args: Option<Vec<String>>,
 }
 
 impl Tool for GitTool {
@@ -79,7 +85,7 @@ impl Tool for GitTool {
         json!({
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["status", "add", "diff", "log", "show", "blame", "branch", "commit", "push"]},
+                "op": {"type": "string", "enum": ["status", "add", "diff", "log", "show", "blame", "branch", "commit", "push", "pull", "tag", "tags", "remote", "remotes"]},
                 "pathspec": {"type": ["string", "array"]},
                 "staged": {"type": "boolean"},
                 "cached": {"type": "boolean"},
@@ -122,10 +128,37 @@ impl Tool for GitTool {
             "branch" => branch(ctx),
             "commit" => commit(ctx, &a),
             "push" => push(ctx, &a),
+            "pull" => pull(ctx, &a),
+            "tag" | "tags" => tag(ctx, &a),
+            "remote" | "remotes" => remote(ctx),
+            "custom" | "raw" => {
+                if let Some(custom_args) = &a.args {
+                    policy::check_tier(ctx.tier, Tier::GitWrite, "git custom")?;
+                    let refs: Vec<&str> = custom_args.iter().map(String::as_str).collect();
+                    let out = git(ctx, &refs).map_err(map_git_err)?;
+                    let mut r = ToolResult::new("git", format!("custom git, {}", format_duration_ms(out.duration_ms)));
+                    r.meta.ok = out.exit.is_success();
+                    r.meta.exit = Some(out.exit);
+                    let text = out.combined();
+                    if !text.trim().is_empty() {
+                        let h = ctx.handles.put("git", text.as_bytes(), "text")?;
+                        r.handle(wxec_core::types::HandleRef {
+                            id: h.id.clone(),
+                            kind: h.kind.clone(),
+                            bytes: h.bytes,
+                            hash: h.hash.clone(),
+                        });
+                        r.must(format!("full: {}", h.id));
+                    }
+                    Ok(r)
+                } else {
+                    Err(WErr::invalid_args("custom git requires args array", "args=[\"describe\", \"--tags\"]"))
+                }
+            }
             other => Err(WErr::with_hint(
                 "invalid_args",
                 format!("unknown git op '{other}'"),
-                "use status|diff|log|show|blame|branch|commit|push",
+                "use status|diff|log|show|blame|branch|commit|push|pull|tag|remote",
             )),
         }
     }
@@ -756,6 +789,9 @@ fn commit(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
 fn push(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
     policy::check_tier(ctx.tier, Tier::GitWrite, "git push")?;
     let mut args: Vec<String> = vec!["push".to_string()];
+    if a.tags {
+        args.push("--tags".to_string());
+    }
     if let Some(remote) = &a.remote {
         reject_dash_arg("remote", remote)?;
         args.push(remote.clone());
@@ -797,6 +833,120 @@ fn push(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
         hash: h.hash.clone(),
     });
     r.must(format!("full: {}", h.id));
+    Ok(r)
+}
+
+fn pull(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
+    policy::check_tier(ctx.tier, Tier::GitWrite, "git pull")?;
+    let mut args: Vec<String> = vec!["pull".to_string()];
+    if a.rebase {
+        args.push("--rebase".to_string());
+    }
+    if let Some(remote) = &a.remote {
+        reject_dash_arg("remote", remote)?;
+        args.push(remote.clone());
+    }
+    if let Some(branch) = &a.branch {
+        reject_dash_arg("branch", branch)?;
+        args.push(branch.clone());
+    }
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = git(ctx, &refs).map_err(map_git_err)?;
+    let first = out
+        .stdout_str()
+        .lines()
+        .chain(out.stderr_str().lines())
+        .find(|l| !l.trim().is_empty())
+        .map(|l| l.trim().to_string())
+        .unwrap_or_else(|| "pull".to_string());
+    let mut r = ToolResult::new(
+        "git",
+        format!("pull, {} {first}", format_duration_ms(out.duration_ms)),
+    );
+    r.meta.ok = out.exit.is_success();
+    r.meta.exit = Some(out.exit);
+    if !r.meta.ok {
+        let errs = extract_git_errors(&out);
+        for err in errs {
+            r.must(err);
+        }
+    }
+    let text = out.combined();
+    if !text.trim().is_empty() {
+        let h = ctx.handles.put("git", text.as_bytes(), "text")?;
+        r.handle(wxec_core::types::HandleRef {
+            id: h.id.clone(),
+            kind: h.kind.clone(),
+            bytes: h.bytes,
+            hash: h.hash.clone(),
+        });
+        r.must(format!("full: {}", h.id));
+    }
+    Ok(r)
+}
+
+fn tag(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
+    let tag_name = a
+        .reference
+        .as_ref()
+        .or(a.path.as_ref())
+        .or(a.branch.as_ref());
+    if let Some(name) = tag_name {
+        policy::check_tier(ctx.tier, Tier::GitWrite, "git tag")?;
+        reject_dash_arg("tag name", name)?;
+        let mut args = vec!["tag".to_string()];
+        if let Some(msg) = &a.message {
+            args.push("-a".to_string());
+            args.push(name.clone());
+            args.push("-m".to_string());
+            args.push(msg.clone());
+        } else {
+            args.push(name.clone());
+        }
+        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let out = git(ctx, &refs).map_err(map_git_err)?;
+        let mut r = ToolResult::new("git", format!("tagged {name}"));
+        r.meta.ok = out.exit.is_success();
+        r.meta.exit = Some(out.exit);
+        if !r.meta.ok {
+            let errs = extract_git_errors(&out);
+            for err in errs {
+                r.must(err);
+            }
+        }
+        Ok(r)
+    } else {
+        let out = git(ctx, &["tag", "-l", "--sort=-v:refname"]).map_err(map_git_err)?;
+        if !out.exit.is_success() {
+            return Err(git_failure("tag", &out));
+        }
+        let text = out.stdout_str();
+        let tags: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+        let mut r = ToolResult::new("git", format!("{} tags", tags.len()));
+        let limit = a.limit.unwrap_or(20) as usize;
+        for t in tags.iter().take(limit) {
+            r.low(t.to_string());
+        }
+        if tags.len() > limit {
+            r.low(format!("...+{} more tags", tags.len() - limit));
+        }
+        r.meta.counts.insert("tags".into(), tags.len() as i64);
+        Ok(r)
+    }
+}
+
+fn remote(ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
+    let out = git(ctx, &["remote", "-v"]).map_err(map_git_err)?;
+    if !out.exit.is_success() {
+        return Err(git_failure("remote", &out));
+    }
+    let text = out.stdout_str();
+    let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+    let count = lines.len() / 2.max(1);
+    let mut r = ToolResult::new("git", format!("{count} remotes"));
+    for l in lines {
+        r.low(l.to_string());
+    }
     Ok(r)
 }
 

@@ -1058,7 +1058,7 @@ impl Tool for EditTool {
                     "content=<file text> or content_file=<path>",
                 )
             })?;
-            if abs.exists() && !a.overwrite.unwrap_or(false) {
+            if abs.exists() && a.create == Some(true) && !a.overwrite.unwrap_or(false) {
                 return Err(WErr::with_hint(
                     "already_exists",
                     format!("'{display}' already exists"),
