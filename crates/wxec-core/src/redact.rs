@@ -46,23 +46,26 @@ impl Redactor {
     /// Returns redacted text and the number of substitutions.
     /// Single-pass per pattern: one scan, one allocation only when a match is found.
     pub fn redact(&self, text: &str) -> (String, u32) {
-        if !self.enabled {
+        if !self.enabled || self.patterns.is_empty() {
             return (text.to_string(), 0);
         }
-        let mut out = text.to_string();
+        let mut out = std::borrow::Cow::Borrowed(text);
         let mut total = 0u32;
         for re in &self.patterns {
+            if !re.is_match(&out) {
+                continue;
+            }
             let mut count = 0u32;
             let replaced = re.replace_all(&out, |_caps: &regex::Captures| {
                 count += 1;
                 "[REDACTED]"
             });
             if count > 0 {
-                out = replaced.into_owned();
+                out = std::borrow::Cow::Owned(replaced.into_owned());
                 total += count;
             }
         }
-        (out, total)
+        (out.into_owned(), total)
     }
 
     /// Secret-looking environment variable names are stripped from child envs.

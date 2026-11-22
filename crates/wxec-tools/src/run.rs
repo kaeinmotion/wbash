@@ -406,8 +406,9 @@ pub struct RunTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RunArgs {
+    #[serde(alias = "cmd", alias = "args")]
     argv: Vec<String>,
-    #[serde(default = "dot")]
+    #[serde(default = "dot", alias = "working_dir", alias = "dir")]
     cwd: String,
     timeout_ms: Option<u64>,
     stdin: Option<String>,

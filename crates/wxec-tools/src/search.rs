@@ -592,6 +592,14 @@ fn scan_lines(
             stats.skipped_binary += 1;
             continue;
         }
+        let file_has_match = match &matcher {
+            MatchMode::Regex(re) => re.is_match(&text),
+            MatchMode::Literal(pat) => text.contains(pat),
+        };
+        if !file_has_match {
+            continue;
+        }
+
         let path_lc = f.rel.to_ascii_lowercase();
         let before = hits.len();
         for (idx, line) in text.lines().enumerate() {
