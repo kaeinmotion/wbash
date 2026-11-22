@@ -402,4 +402,72 @@ fn test_ergonomic_tool_features() {
         "{}",
         verify_read.text
     );
+
+    // 9. path and action aliases across tools
+    let tree_dir_alias = call(&mut d, "tree", json!({"dir": "src"}));
+    assert!(tree_dir_alias.ok, "{}", tree_dir_alias.text);
+
+    let read_file_alias = call(&mut d, "read", json!({"file": "src/main.rs"}));
+    assert!(read_file_alias.ok, "{}", read_file_alias.text);
+
+    let read_files_alias = call(
+        &mut d,
+        "read",
+        json!({"files": ["src/main.rs", "src/config.rs"]}),
+    );
+    assert!(read_files_alias.ok, "{}", read_files_alias.text);
+
+    let edit_file_alias = call(
+        &mut d,
+        "edit",
+        json!({"file": "src/main.rs", "find": "mod config;", "replace": "mod config; // ok"}),
+    );
+    assert!(edit_file_alias.ok, "{}", edit_file_alias.text);
+
+    let repl_file_alias = call(
+        &mut d,
+        "replace",
+        json!({"file": "src/main.rs", "find": "// ok", "replace": "// verified"}),
+    );
+    assert!(repl_file_alias.ok, "{}", repl_file_alias.text);
+
+    let batch_steps_alias = call(
+        &mut d,
+        "batch",
+        json!({
+            "steps": [
+                {"tool": "read", "args": {"file": "src/main.rs"}},
+                {"tool": "tree", "args": {"dir": "src"}}
+            ]
+        }),
+    );
+    assert!(batch_steps_alias.ok, "{}", batch_steps_alias.text);
+
+    let git_action_alias = call(&mut d, "git", json!({"action": "status"}));
+    assert!(git_action_alias.ok, "{}", git_action_alias.text);
+
+    // 10. check package manager auto-detection
+    let pnpm_project = root.join("pnpm_proj");
+    std::fs::create_dir_all(&pnpm_project).unwrap();
+    std::fs::write(
+        pnpm_project.join("package.json"),
+        r#"{"scripts": {"test": "echo test", "lint": "echo lint", "build": "echo build"}}"#,
+    )
+    .unwrap();
+    std::fs::write(pnpm_project.join("pnpm-lock.yaml"), "lockfileVersion: 5.4").unwrap();
+
+    let check_pnpm = call(
+        &mut d,
+        "check",
+        json!({"dir": "pnpm_proj", "target": "all"}),
+    );
+    // commands list detected pnpm commands
+    assert!(
+        check_pnpm.text.contains("pnpm test")
+            || check_pnpm.text.contains("pnpm lint")
+            || check_pnpm.text.contains("0 failed")
+            || check_pnpm.text.contains("pnpm build"),
+        "check should detect pnpm runner: {}",
+        check_pnpm.text
+    );
 }

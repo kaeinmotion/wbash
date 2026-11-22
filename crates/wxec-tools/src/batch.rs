@@ -13,7 +13,13 @@ pub struct BatchTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BatchArgs {
-    #[serde(alias = "tools", alias = "operations", alias = "commands")]
+    #[serde(
+        alias = "tools",
+        alias = "operations",
+        alias = "commands",
+        alias = "steps",
+        alias = "actions"
+    )]
     calls: Vec<BatchCall>,
     #[serde(default, alias = "fail_fast", alias = "bail_on_error")]
     stop_on_error: bool,

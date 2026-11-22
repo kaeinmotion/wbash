@@ -26,9 +26,16 @@ struct ReplaceArgs {
         alias = "with"
     )]
     replace: String,
-    #[serde(default = "dot")]
+    #[serde(
+        default = "dot",
+        alias = "file",
+        alias = "file_path",
+        alias = "filepath",
+        alias = "dir",
+        alias = "directory"
+    )]
     path: String,
-    #[serde(default)]
+    #[serde(default, alias = "files")]
     paths: Vec<String>,
     glob: Option<String>,
     #[serde(default)]

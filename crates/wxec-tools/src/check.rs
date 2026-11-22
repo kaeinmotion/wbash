@@ -29,9 +29,15 @@ pub struct CheckTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CheckArgs {
-    #[serde(default = "all")]
+    #[serde(default = "all", alias = "type", alias = "target")]
     kind: String,
-    #[serde(default = "dot")]
+    #[serde(
+        default = "dot",
+        alias = "dir",
+        alias = "working_dir",
+        alias = "directory",
+        alias = "folder"
+    )]
     path: String,
 }
 
@@ -353,6 +359,7 @@ fn detect_commands(project: &Path, kind: &str) -> Result<Vec<(String, Vec<String
     }
 
     if project.join("package.json").exists() {
+        let runner = detect_js_runner(project);
         let bin = |name: &str| find_executable(name, project);
         if want("types") && project.join("tsconfig.json").exists() {
             if let Some(tsc) = bin("tsc") {
@@ -363,7 +370,12 @@ fn detect_commands(project: &Path, kind: &str) -> Result<Vec<(String, Vec<String
             if let Some(eslint) = bin("eslint") {
                 out.push(("eslint".to_string(), vec![eslint, ".".to_string()]));
             } else if has_script(project, "lint") {
-                out.push(("npm lint".to_string(), s(&["npm", "run", "lint"])));
+                let cmd = if runner == "npm" {
+                    vec!["npm".to_string(), "run".to_string(), "lint".to_string()]
+                } else {
+                    vec![runner.to_string(), "run".to_string(), "lint".to_string()]
+                };
+                out.push((format!("{runner} lint"), cmd));
             }
         }
         if want("test") {
@@ -372,17 +384,39 @@ fn detect_commands(project: &Path, kind: &str) -> Result<Vec<(String, Vec<String
             } else if let Some(jest) = bin("jest") {
                 out.push(("jest".to_string(), vec![jest]));
             } else if has_script(project, "test") {
-                out.push(("npm test".to_string(), s(&["npm", "test"])));
+                let cmd = if runner == "npm" {
+                    vec!["npm".to_string(), "test".to_string()]
+                } else {
+                    vec![runner.to_string(), "test".to_string()]
+                };
+                out.push((format!("{runner} test"), cmd));
             }
         }
         if want("build") && has_script(project, "build") {
-            out.push(("npm build".to_string(), s(&["npm", "run", "build"])));
+            let cmd = if runner == "npm" {
+                vec!["npm".to_string(), "run".to_string(), "build".to_string()]
+            } else {
+                vec![runner.to_string(), "run".to_string(), "build".to_string()]
+            };
+            out.push((format!("{runner} build"), cmd));
         }
     }
 
     let mut seen = BTreeSet::new();
     out.retain(|(_, argv)| seen.insert(argv.join("\u{0}")));
     Ok(out)
+}
+
+fn detect_js_runner(project: &Path) -> &'static str {
+    if project.join("pnpm-lock.yaml").exists() {
+        "pnpm"
+    } else if project.join("bun.lockb").exists() || project.join("bun.lock").exists() {
+        "bun"
+    } else if project.join("yarn.lock").exists() {
+        "yarn"
+    } else {
+        "npm"
+    }
 }
 
 fn has_script(project: &Path, name: &str) -> bool {

@@ -25,7 +25,7 @@ pub struct TreeTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TreeArgs {
-    #[serde(default = "dot")]
+    #[serde(default = "dot", alias = "dir", alias = "directory", alias = "folder")]
     path: String,
     #[serde(default = "two", alias = "max_depth", alias = "level")]
     depth: u32,
@@ -290,9 +290,9 @@ pub struct ReadTool;
 #[derive(Debug, Clone, serde::Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ReadArgs {
-    #[serde(default)]
+    #[serde(default, alias = "file", alias = "file_path", alias = "filepath")]
     path: String,
-    #[serde(default)]
+    #[serde(default, alias = "files")]
     paths: Vec<String>,
     #[serde(
         default,
@@ -809,6 +809,7 @@ pub struct EditTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EditArgs {
+    #[serde(alias = "file", alias = "file_path", alias = "filepath")]
     path: String,
     #[serde(alias = "target", alias = "old_string", alias = "old_str")]
     find: Option<String>,
