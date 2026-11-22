@@ -3,7 +3,6 @@
 [![ci](https://github.com/kaeinmotion/wxec/actions/workflows/ci.yml/badge.svg)](https://github.com/kaeinmotion/wxec/actions)
 [![release](https://img.shields.io/github/v/release/kaeinmotion/wxec?color=blue)](https://github.com/kaeinmotion/wxec/releases/latest)
 [![license: mit](https://img.shields.io/badge/license-mit-yellow.svg)](https://opensource.org/licenses/MIT)
-[![glama quality score](https://glama.ai/mcp/servers/kaeinmotion/wxec/badges/score.svg)](https://glama.ai/mcp/servers/kaeinmotion/wxec)
 [![model context protocol](https://img.shields.io/badge/mcp-compatible-green.svg)](https://modelcontextprotocol.io)
 
 wxec is an ultra token-efficient model context protocol (mcp) server and execution engine for ai coding agents (claude, cursor, cline, windsurf, antigravity). it connects agents directly to your workspace, cuts context tokens by up to 84%, and executes multi-step workflows in a single turn with lossless memory handles.
