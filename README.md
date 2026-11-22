@@ -17,14 +17,12 @@ raw shell tools dump thousands of tokens of compiler noise, test logs, and boile
 
 ## benchmark (real cl100k_base tokens)
 
-| task | raw shell | rtk (0.37.2) | wxec mcp | savings vs raw |
-| :--- | :---: | :---: | :---: | :---: |
-| git status | 86 tok | 22 tok | **16 tok** | -81.4% |
-| git diff | 1,661 tok | 1,319 tok | **874 tok** | -47.4% |
-| file read (480 lines) | 3,422 tok | 3,422 tok | **27 tok** | -99.2% |
-| search / grep | 567 tok | 459 tok | **11 tok** | -98.1% |
-| test execution | 356 tok | 99 tok | **10 tok** | -97.2% |
-| total | 6,257 tok | 5,381 tok | **1,018 tok** | **-83.7%** |
+- git status: 86 tok (raw shell) vs 22 tok (rtk) vs 16 tok (wxec mcp) [-81.4%]
+- git diff: 1,661 tok (raw shell) vs 1,319 tok (rtk) vs 874 tok (wxec mcp) [-47.4%]
+- file read (480 lines): 3,422 tok (raw shell) vs 3,422 tok (rtk) vs 27 tok (wxec mcp) [-99.2%]
+- search / grep: 567 tok (raw shell) vs 459 tok (rtk) vs 11 tok (wxec mcp) [-98.1%]
+- test execution: 356 tok (raw shell) vs 99 tok (rtk) vs 10 tok (wxec mcp) [-97.2%]
+- total: 6,257 tok (raw shell) vs 5,381 tok (rtk) vs 1,018 tok (wxec mcp) [-83.7%]
 
 ## setup (mcp first)
 
@@ -51,19 +49,17 @@ cp target/release/wxec ~/.cargo/bin/
 
 ## available mcp tools
 
-| tool | purpose | key parameters |
-| :--- | :--- | :--- |
-| `read` | token-compact file inspector | `path`, `lines` (`"1:50"` or `"1-50"`), `force` |
-| `edit` | surgical code editor with aliases | `path`, `find`/`target`, `replace`/`replacement` |
-| `search` | simd-accelerated workspace search | `pattern`/`query`, `path`, `mode` (`text`/`regex`/`symbol`) |
-| `replace` | global pattern replacement | `find`, `replace`, `path`, `glob` |
-| `tree` | dependency-free directory tree | `path`, `depth` |
-| `check` | fast compiler and test checks | `kind` (`test`, `build`, `lint`, `all`) |
-| `git` | complete git lifecycle | `op` (`status`, `add`, `diff`, `commit`, `push`, `log`) |
-| `batch` | multi-tool bundling in 1 turn | `calls: [{"tool": "...", "args": {...}}]` |
-| `expand` | retrieve full text from handle | `id` (e.g. `"~h123"`) |
-| `run` | structured command executor | `argv`/`cmd`, `cwd` |
-| `sh` | shell fallback with timeout safety | `command` |
+- `read`: token-compact file inspector (`path`, `lines`, `force`)
+- `edit`: surgical code editor with aliases (`path`, `find`/`target`, `replace`/`replacement`)
+- `search`: simd-accelerated workspace search (`pattern`/`query`, `path`, `mode`)
+- `replace`: global pattern replacement (`find`, `replace`, `path`, `glob`)
+- `tree`: dependency-free directory tree (`path`, `depth`)
+- `check`: fast compiler and test checks (`kind: test, build, lint, all`)
+- `git`: complete git lifecycle (`op: status, add, diff, commit, push, log`)
+- `batch`: multi-tool bundling in 1 turn (`calls: [{"tool": "...", "args": {...}}]`)
+- `expand`: retrieve full text from handle (`id`)
+- `run`: structured command executor (`argv`/`cmd`, `cwd`)
+- `sh`: shell fallback with timeout safety (`command`)
 
 ## license
 
