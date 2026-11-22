@@ -5,6 +5,6 @@ expect:
   - "parse_tool_args"
 bash:
   - "wc -l crates/wxec-cli/src/lib.rs"
-  - "sed -n \"1,240p\" crates/wxec-cli/src/lib.rs"
+  - "sed -n \"1,320p\" crates/wxec-cli/src/lib.rs"
 w:
   - "w read crates/wxec-cli/src/lib.rs --outline --budget 700"

@@ -14,12 +14,13 @@ use wxec_core::types::{Diagnostic, Severity, TestResult, Tier, ToolResult};
 use crate::run::execute_with_parsers;
 use crate::util;
 
+type DetectCacheMap = HashMap<(PathBuf, String), Vec<(String, Vec<String>)>>;
+
 /// Session-scoped cache of detected commands keyed by (project_root, kind).
 /// Re-detecting on every `check` call costs 6–10 syscalls; this avoids them.
-static DETECT_CACHE: OnceLock<Mutex<HashMap<(PathBuf, String), Vec<(String, Vec<String>)>>>> =
-    OnceLock::new();
+static DETECT_CACHE: OnceLock<Mutex<DetectCacheMap>> = OnceLock::new();
 
-fn detect_cache() -> &'static Mutex<HashMap<(PathBuf, String), Vec<(String, Vec<String>)>>> {
+fn detect_cache() -> &'static Mutex<DetectCacheMap> {
     DETECT_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -46,7 +47,7 @@ impl Tool for CheckTool {
         "check"
     }
     fn description(&self) -> &'static str {
-        "Detect and run build/lint/type/test checks; normalized diagnostics."
+        "Run build/lint/type/test checks; normalized output."
     }
     fn min_tier(&self) -> Tier {
         Tier::Execute
@@ -82,7 +83,9 @@ impl Tool for CheckTool {
         let project = detect_root(ctx.root, &base).unwrap_or_else(|| base.clone());
         let cache_key = (project.clone(), a.kind.clone());
         let mut commands = {
-            let cached = detect_cache().lock().ok()
+            let cached = detect_cache()
+                .lock()
+                .ok()
                 .and_then(|g| g.get(&cache_key).cloned());
             if let Some(cmds) = cached {
                 cmds

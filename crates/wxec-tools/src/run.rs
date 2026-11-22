@@ -274,7 +274,8 @@ pub fn record_output(
                 }
             } else {
                 // keep at most a few informative summary-like lines with bounded O(1) memory
-                let mut ring: std::collections::VecDeque<&str> = std::collections::VecDeque::with_capacity(7);
+                let mut ring: std::collections::VecDeque<&str> =
+                    std::collections::VecDeque::with_capacity(7);
                 let mut count = 0usize;
                 for l in raw.lines() {
                     let l = l.trim_end();
@@ -422,7 +423,7 @@ impl Tool for RunTool {
         "run"
     }
     fn description(&self) -> &'static str {
-        "Execute argv directly, normalize output, keep full log in a handle."
+        "Execute argv directly, normalize output, save log in handle."
     }
     fn min_tier(&self) -> Tier {
         Tier::Execute
@@ -534,7 +535,7 @@ impl Tool for ShTool {
         "sh"
     }
     fn description(&self) -> &'static str {
-        "Run a shell command (requires allow_shell); generic compaction."
+        "Run shell command (requires allow_shell); compact."
     }
     fn min_tier(&self) -> Tier {
         Tier::Execute

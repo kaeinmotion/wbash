@@ -65,7 +65,7 @@ impl Tool for SearchTool {
         "search"
     }
     fn description(&self) -> &'static str {
-        "Search text, regex or symbols across the workspace."
+        "Search text, regex or symbols in workspace."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly
@@ -633,11 +633,26 @@ fn scan_lines(
 }
 
 const DEFN_PREFIXES: &[&str] = &[
-    "fn ", "pub fn ", "async fn ", "pub async fn ",
-    "def ", "class ", "struct ", "pub struct ",
-    "enum ", "pub enum ", "trait ", "pub trait ",
-    "impl ", "interface ", "pub interface ",
-    "func ", "type ", "pub type ", "const ", "export ",
+    "fn ",
+    "pub fn ",
+    "async fn ",
+    "pub async fn ",
+    "def ",
+    "class ",
+    "struct ",
+    "pub struct ",
+    "enum ",
+    "pub enum ",
+    "trait ",
+    "pub trait ",
+    "impl ",
+    "interface ",
+    "pub interface ",
+    "func ",
+    "type ",
+    "pub type ",
+    "const ",
+    "export ",
 ];
 
 fn looks_like_definition(line: &str) -> bool {

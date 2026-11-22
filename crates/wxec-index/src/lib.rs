@@ -492,7 +492,7 @@ impl Workspace {
 
 use std::cell::Cell;
 thread_local! {
-    static WRITE_COUNTER: Cell<u64> = Cell::new(0);
+    static WRITE_COUNTER: Cell<u64> = const { Cell::new(0) };
 }
 fn next_nonce() -> u64 {
     WRITE_COUNTER.with(|c| {

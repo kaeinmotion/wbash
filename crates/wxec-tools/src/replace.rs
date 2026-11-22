@@ -62,7 +62,7 @@ impl Matcher {
                 let mut n = 0usize;
                 let out = re
                     .replace_all(text, |caps: &regex::Captures<'_>| {
-                        if limit.map_or(true, |lim| n < lim) {
+                        if limit.is_none_or(|lim| n < lim) {
                             n += 1;
                             expand_replacement(repl, caps)
                         } else {
@@ -309,10 +309,11 @@ impl Tool for ReplaceTool {
             let bytes = match tf.encoding.unwrap_or(wxec_index::TextEncoding::Utf8) {
                 enc @ (wxec_index::TextEncoding::Utf16Le
                 | wxec_index::TextEncoding::Utf16Be
-                | wxec_index::TextEncoding::Latin1) => wxec_index::encode_text(&new, enc)
-                    .map_err(|e| {
+                | wxec_index::TextEncoding::Latin1) => {
+                    wxec_index::encode_text(&new, enc).map_err(|e| {
                         WErr::new("invalid_args", format!("cannot encode replace: {e}"))
-                    })?,
+                    })?
+                }
                 wxec_index::TextEncoding::Utf8 => new.as_bytes().to_vec(),
             };
             file_summaries.push(format!("{} ({})", f.rel, replaced));

@@ -93,7 +93,8 @@ pub fn build_env(
     if let Some(path) = env.get_mut("PATH") {
         if let Ok(home) = std::env::var("HOME") {
             let cargo_bin = format!("{home}/.cargo/bin");
-            if !path.split(':').any(|p| p == cargo_bin) && std::path::Path::new(&cargo_bin).is_dir() {
+            if !path.split(':').any(|p| p == cargo_bin) && std::path::Path::new(&cargo_bin).is_dir()
+            {
                 *path = format!("{cargo_bin}:{path}");
             }
         }

@@ -710,25 +710,24 @@ fn split_cmd_tokens(cmd: &str) -> Vec<String> {
 
 fn split_file_line_suffix(p: &str) -> Option<(String, String)> {
     let parts: Vec<&str> = p.rsplitn(3, ':').collect();
-    if parts.len() == 3 && !parts[0].is_empty() && !parts[1].is_empty() {
-        if parts[0].chars().all(|c| c.is_ascii_digit())
-            && parts[1].chars().all(|c| c.is_ascii_digit())
-        {
-            let start = parts[1];
-            let end = parts[0];
-            let file = parts[2];
-            if !file.is_empty() {
-                return Some((file.to_string(), format!("{start}:{end}")));
-            }
+    if parts.len() == 3
+        && !parts[0].is_empty()
+        && !parts[1].is_empty()
+        && parts[0].chars().all(|c| c.is_ascii_digit())
+        && parts[1].chars().all(|c| c.is_ascii_digit())
+    {
+        let start = parts[1];
+        let end = parts[0];
+        let file = parts[2];
+        if !file.is_empty() {
+            return Some((file.to_string(), format!("{start}:{end}")));
         }
     }
-    if parts.len() >= 2 && !parts[0].is_empty() {
-        if parts[0].chars().all(|c| c.is_ascii_digit()) {
-            let line = parts[0];
-            let file = &p[..p.len() - line.len() - 1];
-            if !file.is_empty() {
-                return Some((file.to_string(), format!("{line}:{line}")));
-            }
+    if parts.len() >= 2 && !parts[0].is_empty() && parts[0].chars().all(|c| c.is_ascii_digit()) {
+        let line = parts[0];
+        let file = &p[..p.len() - line.len() - 1];
+        if !file.is_empty() {
+            return Some((file.to_string(), format!("{line}:{line}")));
         }
     }
     None
@@ -1160,12 +1159,18 @@ fn split_cmd_chain(input: &str) -> Vec<String> {
 fn parse_subcommand_to_call(cmd_str: &str) -> Result<Value> {
     let mut raw_tokens = split_cmd_tokens(cmd_str);
     if raw_tokens.is_empty() {
-        return Err(WErr::invalid_args("empty command in batch", "w batch \"<tool> [args]\" ..."));
+        return Err(WErr::invalid_args(
+            "empty command in batch",
+            "w batch \"<tool> [args]\" ...",
+        ));
     }
     if raw_tokens[0] == "w" || raw_tokens[0] == "wxec" {
         raw_tokens.remove(0);
         if raw_tokens.is_empty() {
-            return Err(WErr::invalid_args("empty command in batch", "w batch \"<tool> [args]\" ..."));
+            return Err(WErr::invalid_args(
+                "empty command in batch",
+                "w batch \"<tool> [args]\" ...",
+            ));
         }
     }
     let sub_tool = canonical_tool(&raw_tokens[0]);
@@ -1488,7 +1493,8 @@ mod tests {
 
     #[test]
     fn git_log_negative_number_flag_is_parsed() {
-        let (obj, _, _) = super::parse_tool_args(&["log".to_string(), "-5".to_string()], "git").unwrap();
+        let (obj, _, _) =
+            super::parse_tool_args(&["log".to_string(), "-5".to_string()], "git").unwrap();
         assert_eq!(obj.get("limit").and_then(Value::as_i64), Some(5));
     }
 
@@ -1549,7 +1555,10 @@ mod tests {
     #[test]
     fn batch_chained_delimiters() {
         let parts = super::split_cmd_chain("r file1.rs; s pattern crates && u cargo check");
-        assert_eq!(parts, vec!["r file1.rs", "s pattern crates", "u cargo check"]);
+        assert_eq!(
+            parts,
+            vec!["r file1.rs", "s pattern crates", "u cargo check"]
+        );
     }
 
     #[test]
@@ -1558,7 +1567,11 @@ mod tests {
         super::fill_positionals(
             "edit",
             &mut obj,
-            &["src/main.rs".to_string(), "10:20".to_string(), "new content".to_string()],
+            &[
+                "src/main.rs".to_string(),
+                "10:20".to_string(),
+                "new content".to_string(),
+            ],
         )
         .unwrap();
         assert_eq!(obj["path"], "src/main.rs");
@@ -1587,7 +1600,12 @@ mod tests {
         assert_eq!(obj["kind"], "test");
 
         let mut obj2 = Map::new();
-        super::fill_positionals("check", &mut obj2, &["lint".to_string(), "crates".to_string()]).unwrap();
+        super::fill_positionals(
+            "check",
+            &mut obj2,
+            &["lint".to_string(), "crates".to_string()],
+        )
+        .unwrap();
         assert_eq!(obj2["kind"], "lint");
         assert_eq!(obj2["path"], "crates");
     }

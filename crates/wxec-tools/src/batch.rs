@@ -33,7 +33,7 @@ impl Tool for BatchTool {
         "batch"
     }
     fn description(&self) -> &'static str {
-        "Run up to 16 independent tool calls; child failures do not cancel."
+        "Run up to 16 tool calls; child failures do not cancel."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly
@@ -118,8 +118,10 @@ impl Tool for BatchTool {
                     let header = format!("#{} {} ok", i + 1, call.tool);
                     let has_text = !rendered.text.trim().is_empty();
                     if has_text || !child.handles.is_empty() {
-                        used_items_tokens = used_items_tokens.saturating_add(estimator::estimate_text(&header));
-                        used_items_tokens = used_items_tokens.saturating_add(estimator::estimate_text(&rendered.text));
+                        used_items_tokens =
+                            used_items_tokens.saturating_add(estimator::estimate_text(&header));
+                        used_items_tokens = used_items_tokens
+                            .saturating_add(estimator::estimate_text(&rendered.text));
                         result.push(Item::new(ItemClass::High, 5.0, vec![header]));
                         for line in rendered.text.lines() {
                             result.low(line.to_string());
@@ -140,13 +142,11 @@ impl Tool for BatchTool {
                     err_count += 1;
                     let err_hdr = format!("#{} {} error", i + 1, call.tool);
                     let err_msg = e.render();
-                    used_items_tokens = used_items_tokens.saturating_add(estimator::estimate_text(&err_hdr));
-                    used_items_tokens = used_items_tokens.saturating_add(estimator::estimate_text(&err_msg));
-                    result.push(Item::new(
-                        ItemClass::MustKeep,
-                        1000.0,
-                        vec![err_hdr],
-                    ));
+                    used_items_tokens =
+                        used_items_tokens.saturating_add(estimator::estimate_text(&err_hdr));
+                    used_items_tokens =
+                        used_items_tokens.saturating_add(estimator::estimate_text(&err_msg));
+                    result.push(Item::new(ItemClass::MustKeep, 1000.0, vec![err_hdr]));
                     result.must(err_msg);
                 }
             }

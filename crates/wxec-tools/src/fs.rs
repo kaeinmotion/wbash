@@ -46,7 +46,7 @@ impl Tool for TreeTool {
         "tree"
     }
     fn description(&self) -> &'static str {
-        "List workspace files as an indented tree."
+        "List files as an indented tree."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly
@@ -296,7 +296,7 @@ impl Tool for ReadTool {
         "read"
     }
     fn description(&self) -> &'static str {
-        "Read a file or range; returns unchanged when hash-verified."
+        "Read file or range; unchanged when hash-verified."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly
@@ -328,8 +328,13 @@ impl Tool for ReadTool {
                 let mut single_args = a.clone();
                 single_args.path = p.clone();
                 single_args.paths.clear();
-                let sub = self.call(&serde_json::to_value(&single_args).unwrap_or_default(), ctx)?;
-                r.push(Item::new(ItemClass::High, 5.0, vec![format!("--- {} ---", sub.header)]));
+                let sub =
+                    self.call(&serde_json::to_value(&single_args).unwrap_or_default(), ctx)?;
+                r.push(Item::new(
+                    ItemClass::High,
+                    5.0,
+                    vec![format!("--- {} ---", sub.header)],
+                ));
                 for item in sub.items {
                     r.push(item);
                 }
@@ -340,7 +345,10 @@ impl Tool for ReadTool {
             return Ok(r);
         }
         if a.path.is_empty() {
-            return Err(WErr::invalid_args("read requires path or paths", "read path=<file>"));
+            return Err(WErr::invalid_args(
+                "read requires path or paths",
+                "read path=<file>",
+            ));
         }
         let abs = ctx.resolve(&a.path, true)?;
         if abs.is_dir() {
@@ -829,8 +837,7 @@ impl Tool for EditTool {
         "edit"
     }
     fn description(&self) -> &'static str {
-        "Exact literal edit, line splice, create or delete; atomic write."
-
+        "Exact edit, line splice, create or delete; atomic."
     }
     fn min_tier(&self) -> Tier {
         Tier::WriteWorkspace
@@ -872,11 +879,16 @@ impl Tool for EditTool {
         if let Some(f) = find.as_deref() {
             if f == "-" {
                 let mut s = String::new();
-                std::io::stdin().read_to_string(&mut s).map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
+                std::io::stdin()
+                    .read_to_string(&mut s)
+                    .map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
                 find = Some(s);
             } else if let Some(path) = f.strip_prefix('@') {
                 let p = ctx.resolve(path, true)?;
-                find = Some(std::fs::read_to_string(&p).map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?);
+                find = Some(
+                    std::fs::read_to_string(&p)
+                        .map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?,
+                );
             }
         }
 
@@ -884,11 +896,16 @@ impl Tool for EditTool {
         if let Some(r) = replace.as_deref() {
             if r == "-" {
                 let mut s = String::new();
-                std::io::stdin().read_to_string(&mut s).map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
+                std::io::stdin()
+                    .read_to_string(&mut s)
+                    .map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
                 replace = Some(s);
             } else if let Some(path) = r.strip_prefix('@') {
                 let p = ctx.resolve(path, true)?;
-                replace = Some(std::fs::read_to_string(&p).map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?);
+                replace = Some(
+                    std::fs::read_to_string(&p)
+                        .map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?,
+                );
             }
         }
 
@@ -896,11 +913,16 @@ impl Tool for EditTool {
         if let Some(c) = content.as_deref() {
             if c == "-" {
                 let mut s = String::new();
-                std::io::stdin().read_to_string(&mut s).map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
+                std::io::stdin()
+                    .read_to_string(&mut s)
+                    .map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
                 content = Some(s);
             } else if let Some(path) = c.strip_prefix('@') {
                 let p = ctx.resolve(path, true)?;
-                content = Some(std::fs::read_to_string(&p).map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?);
+                content = Some(
+                    std::fs::read_to_string(&p)
+                        .map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?,
+                );
             }
         }
 
@@ -953,7 +975,10 @@ impl Tool for EditTool {
 
         if a.create.unwrap_or(false) {
             let content = content.clone().ok_or_else(|| {
-                WErr::invalid_args("create requires content", "content=<file text> or content_file=<path>")
+                WErr::invalid_args(
+                    "create requires content",
+                    "content=<file text> or content_file=<path>",
+                )
             })?;
             if abs.exists() && !a.overwrite.unwrap_or(false) {
                 return Err(WErr::with_hint(
@@ -1180,7 +1205,11 @@ fn post_check(
     };
     let introduced: Vec<_> = new_errors
         .into_iter()
-        .filter(|ne| !old_errors.iter().any(|oe| oe.message == ne.message && oe.col == ne.col))
+        .filter(|ne| {
+            !old_errors
+                .iter()
+                .any(|oe| oe.message == ne.message && oe.col == ne.col)
+        })
         .collect();
     if introduced.is_empty() {
         return Ok(());
@@ -1252,7 +1281,7 @@ impl Tool for ExpandTool {
         "expand"
     }
     fn description(&self) -> &'static str {
-        "Expand a handle with optional grep/lines/head/tail filters."
+        "Expand handle with optional grep/lines filters."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly

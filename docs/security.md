@@ -29,7 +29,7 @@
 
 Policy is enforced in the dispatcher before the tool runs; a denied call emits
 `!policy_denied` and never reaches the filesystem or process layer. Sessions
-default to `write_workspace`. `batch` derives each call's requirement
+default to `write_workspace` for CLI, and `git_write` for MCP server sessions (configurable via `--tier`). `batch` derives each call's requirement
 individually; a denied call fails only its own block.
 
 ## Execution

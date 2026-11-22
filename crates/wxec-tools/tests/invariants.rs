@@ -137,7 +137,11 @@ fn tool_invariants() {
     );
     assert!(fuzzy.ok, "{}", fuzzy.text);
     let after_fuzzy = call(&mut d, "read", json!({"path": "src/config.rs"}));
-    assert!(after_fuzzy.text.contains("Err(\"none\".into())"), "{}", after_fuzzy.text);
+    assert!(
+        after_fuzzy.text.contains("Err(\"none\".into())"),
+        "{}",
+        after_fuzzy.text
+    );
 
     // ambiguous anchor
     std::fs::write(root.join("dup.txt"), "x\nx\n").unwrap();
@@ -258,6 +262,10 @@ fn tool_invariants() {
 #[test]
 fn search_stats_flag() {
     let (_root, mut d) = setup();
-    let s = call(&mut d, "search", json!({"pattern": "config", "stats": true}));
+    let s = call(
+        &mut d,
+        "search",
+        json!({"pattern": "config", "stats": true}),
+    );
     assert!(s.text.contains("# stats: scanned"), "{}", s.text);
 }

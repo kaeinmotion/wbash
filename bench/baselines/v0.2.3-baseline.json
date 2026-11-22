@@ -1,27 +1,27 @@
 {
-  "generated_at": "2026-11-18T13:35:43Z",
+  "generated_at": "2026-11-22T05:36:07Z",
   "tokenizer": "cl100k_base",
   "summary": {
     "bash": {
       "tasks": 30,
       "passed": 30,
-      "tokens_est": 11566,
-      "tokens_cl100k": 11986,
+      "tokens_est": 12366,
+      "tokens_cl100k": 12640,
       "steps": 52,
-      "wall_ms": 17590,
+      "wall_ms": 27810,
       "by_kind": {
         "explain": {
           "tasks": 5,
           "passed": 5,
-          "tokens_est": 9436,
-          "tokens_cl100k": 9055,
+          "tokens_est": 10192,
+          "tokens_cl100k": 9654,
           "steps": 10
         },
         "fix_failing_test": {
           "tasks": 6,
           "passed": 6,
-          "tokens_est": 811,
-          "tokens_cl100k": 1114,
+          "tokens_est": 859,
+          "tokens_cl100k": 1169,
           "steps": 12
         },
         "fix_lint_or_type": {
@@ -34,7 +34,7 @@
         "locate": {
           "tasks": 8,
           "passed": 8,
-          "tokens_est": 385,
+          "tokens_est": 381,
           "tokens_cl100k": 483,
           "steps": 8
         },
@@ -57,16 +57,16 @@
     "w": {
       "tasks": 30,
       "passed": 30,
-      "tokens_est": 2870,
-      "tokens_cl100k": 3821,
+      "tokens_est": 3028,
+      "tokens_cl100k": 4039,
       "steps": 43,
-      "wall_ms": 18196,
+      "wall_ms": 27297,
       "by_kind": {
         "explain": {
           "tasks": 5,
           "passed": 5,
-          "tokens_est": 1131,
-          "tokens_cl100k": 1492,
+          "tokens_est": 1296,
+          "tokens_cl100k": 1713,
           "steps": 5
         },
         "fix_failing_test": {
@@ -86,7 +86,7 @@
         "locate": {
           "tasks": 8,
           "passed": 8,
-          "tokens_est": 362,
+          "tokens_est": 360,
           "tokens_cl100k": 459,
           "steps": 8
         },
@@ -100,8 +100,8 @@
         "summarize_diff": {
           "tasks": 3,
           "passed": 3,
-          "tokens_est": 136,
-          "tokens_cl100k": 199,
+          "tokens_est": 131,
+          "tokens_cl100k": 196,
           "steps": 6
         }
       }
@@ -119,9 +119,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 51,
+      "tokens_est": 50,
       "tokens_cl100k": 63,
-      "wall_ms": 41
+      "wall_ms": 36
     },
     {
       "task": "locate_resolve",
@@ -136,7 +136,7 @@
       "missing_expect": [],
       "tokens_est": 53,
       "tokens_cl100k": 66,
-      "wall_ms": 113
+      "wall_ms": 85
     },
     {
       "task": "locate_render_tree",
@@ -151,7 +151,7 @@
       "missing_expect": [],
       "tokens_est": 22,
       "tokens_cl100k": 27,
-      "wall_ms": 81
+      "wall_ms": 17
     },
     {
       "task": "locate_render_tree",
@@ -166,7 +166,7 @@
       "missing_expect": [],
       "tokens_est": 20,
       "tokens_cl100k": 24,
-      "wall_ms": 34
+      "wall_ms": 37
     },
     {
       "task": "locate_readseen",
@@ -181,7 +181,7 @@
       "missing_expect": [],
       "tokens_est": 24,
       "tokens_cl100k": 28,
-      "wall_ms": 25
+      "wall_ms": 18
     },
     {
       "task": "locate_readseen",
@@ -196,7 +196,7 @@
       "missing_expect": [],
       "tokens_est": 22,
       "tokens_cl100k": 25,
-      "wall_ms": 28
+      "wall_ms": 37
     },
     {
       "task": "locate_parse_cargo",
@@ -211,7 +211,7 @@
       "missing_expect": [],
       "tokens_est": 39,
       "tokens_cl100k": 51,
-      "wall_ms": 20
+      "wall_ms": 17
     },
     {
       "task": "locate_parse_cargo",
@@ -226,7 +226,7 @@
       "missing_expect": [],
       "tokens_est": 37,
       "tokens_cl100k": 48,
-      "wall_ms": 37
+      "wall_ms": 35
     },
     {
       "task": "locate_mcp_handle",
@@ -239,9 +239,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 96,
+      "tokens_est": 95,
       "tokens_cl100k": 118,
-      "wall_ms": 21
+      "wall_ms": 18
     },
     {
       "task": "locate_mcp_handle",
@@ -254,9 +254,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 98,
+      "tokens_est": 97,
       "tokens_cl100k": 120,
-      "wall_ms": 40
+      "wall_ms": 36
     },
     {
       "task": "locate_handle_put",
@@ -271,7 +271,7 @@
       "missing_expect": [],
       "tokens_est": 40,
       "tokens_cl100k": 55,
-      "wall_ms": 20
+      "wall_ms": 17
     },
     {
       "task": "locate_handle_put",
@@ -284,9 +284,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 38,
+      "tokens_est": 37,
       "tokens_cl100k": 51,
-      "wall_ms": 77
+      "wall_ms": 34
     },
     {
       "task": "locate_schema_budget",
@@ -299,9 +299,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 70,
+      "tokens_est": 69,
       "tokens_cl100k": 85,
-      "wall_ms": 23
+      "wall_ms": 17
     },
     {
       "task": "locate_schema_budget",
@@ -316,7 +316,7 @@
       "missing_expect": [],
       "tokens_est": 53,
       "tokens_cl100k": 72,
-      "wall_ms": 57
+      "wall_ms": 35
     },
     {
       "task": "locate_tier_gate",
@@ -329,9 +329,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 43,
+      "tokens_est": 42,
       "tokens_cl100k": 56,
-      "wall_ms": 21
+      "wall_ms": 16
     },
     {
       "task": "locate_tier_gate",
@@ -346,7 +346,7 @@
       "missing_expect": [],
       "tokens_est": 41,
       "tokens_cl100k": 53,
-      "wall_ms": 40
+      "wall_ms": 35
     },
     {
       "task": "explain_dispatch",
@@ -360,9 +360,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 1933,
-      "tokens_cl100k": 1738,
-      "wall_ms": 28
+      "tokens_est": 1963,
+      "tokens_cl100k": 1745,
+      "wall_ms": 23
     },
     {
       "task": "explain_dispatch",
@@ -375,9 +375,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 159,
-      "tokens_cl100k": 228,
-      "wall_ms": 68
+      "tokens_est": 172,
+      "tokens_cl100k": 247,
+      "wall_ms": 23
     },
     {
       "task": "explain_parsers",
@@ -391,9 +391,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 1923,
-      "tokens_cl100k": 1777,
-      "wall_ms": 27
+      "tokens_est": 2043,
+      "tokens_cl100k": 1818,
+      "wall_ms": 20
     },
     {
       "task": "explain_parsers",
@@ -406,9 +406,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 276,
-      "tokens_cl100k": 381,
-      "wall_ms": 31
+      "tokens_est": 289,
+      "tokens_cl100k": 405,
+      "wall_ms": 24
     },
     {
       "task": "explain_util",
@@ -422,9 +422,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 1840,
-      "tokens_cl100k": 1876,
-      "wall_ms": 29
+      "tokens_est": 1876,
+      "tokens_cl100k": 1880,
+      "wall_ms": 32
     },
     {
       "task": "explain_util",
@@ -438,8 +438,8 @@
       "check_exit": 0,
       "missing_expect": [],
       "tokens_est": 257,
-      "tokens_cl100k": 305,
-      "wall_ms": 31
+      "tokens_cl100k": 306,
+      "wall_ms": 17
     },
     {
       "task": "explain_cli",
@@ -453,9 +453,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 1908,
-      "tokens_cl100k": 1922,
-      "wall_ms": 36
+      "tokens_est": 2367,
+      "tokens_cl100k": 2396,
+      "wall_ms": 20
     },
     {
       "task": "explain_cli",
@@ -468,9 +468,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 281,
-      "tokens_cl100k": 357,
-      "wall_ms": 35
+      "tokens_est": 415,
+      "tokens_cl100k": 528,
+      "wall_ms": 19
     },
     {
       "task": "explain_handles",
@@ -484,9 +484,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 1832,
-      "tokens_cl100k": 1742,
-      "wall_ms": 32
+      "tokens_est": 1943,
+      "tokens_cl100k": 1815,
+      "wall_ms": 19
     },
     {
       "task": "explain_handles",
@@ -499,9 +499,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 158,
-      "tokens_cl100k": 221,
-      "wall_ms": 35
+      "tokens_est": 163,
+      "tokens_cl100k": 227,
+      "wall_ms": 15
     },
     {
       "task": "diff_farewell",
@@ -517,7 +517,7 @@
       "missing_expect": [],
       "tokens_est": 85,
       "tokens_cl100k": 119,
-      "wall_ms": 76
+      "wall_ms": 49
     },
     {
       "task": "diff_farewell",
@@ -531,9 +531,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 46,
-      "tokens_cl100k": 67,
-      "wall_ms": 144
+      "tokens_est": 44,
+      "tokens_cl100k": 66,
+      "wall_ms": 115
     },
     {
       "task": "diff_version",
@@ -549,7 +549,7 @@
       "missing_expect": [],
       "tokens_est": 84,
       "tokens_cl100k": 117,
-      "wall_ms": 75
+      "wall_ms": 48
     },
     {
       "task": "diff_version",
@@ -563,9 +563,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 45,
-      "tokens_cl100k": 66,
-      "wall_ms": 157
+      "tokens_est": 44,
+      "tokens_cl100k": 65,
+      "wall_ms": 113
     },
     {
       "task": "diff_status",
@@ -581,7 +581,7 @@
       "missing_expect": [],
       "tokens_est": 84,
       "tokens_cl100k": 118,
-      "wall_ms": 66
+      "wall_ms": 48
     },
     {
       "task": "diff_status",
@@ -595,9 +595,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 45,
-      "tokens_cl100k": 66,
-      "wall_ms": 144
+      "tokens_est": 43,
+      "tokens_cl100k": 65,
+      "wall_ms": 115
     },
     {
       "task": "fix_add",
@@ -611,9 +611,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 100,
-      "tokens_cl100k": 149,
-      "wall_ms": 2107
+      "tokens_est": 148,
+      "tokens_cl100k": 204,
+      "wall_ms": 3201
     },
     {
       "task": "fix_add",
@@ -629,7 +629,7 @@
       "missing_expect": [],
       "tokens_est": 138,
       "tokens_cl100k": 192,
-      "wall_ms": 1795
+      "wall_ms": 2772
     },
     {
       "task": "fix_sub",
@@ -645,7 +645,7 @@
       "missing_expect": [],
       "tokens_est": 148,
       "tokens_cl100k": 204,
-      "wall_ms": 1619
+      "wall_ms": 2716
     },
     {
       "task": "fix_sub",
@@ -661,7 +661,7 @@
       "missing_expect": [],
       "tokens_est": 138,
       "tokens_cl100k": 192,
-      "wall_ms": 1740
+      "wall_ms": 2734
     },
     {
       "task": "fix_mul",
@@ -677,7 +677,7 @@
       "missing_expect": [],
       "tokens_est": 148,
       "tokens_cl100k": 204,
-      "wall_ms": 1631
+      "wall_ms": 2647
     },
     {
       "task": "fix_mul",
@@ -693,7 +693,7 @@
       "missing_expect": [],
       "tokens_est": 138,
       "tokens_cl100k": 192,
-      "wall_ms": 1726
+      "wall_ms": 2663
     },
     {
       "task": "fix_clamp",
@@ -709,7 +709,7 @@
       "missing_expect": [],
       "tokens_est": 151,
       "tokens_cl100k": 201,
-      "wall_ms": 1921
+      "wall_ms": 2970
     },
     {
       "task": "fix_clamp",
@@ -725,7 +725,7 @@
       "missing_expect": [],
       "tokens_est": 140,
       "tokens_cl100k": 187,
-      "wall_ms": 1705
+      "wall_ms": 2644
     },
     {
       "task": "fix_parse",
@@ -741,7 +741,7 @@
       "missing_expect": [],
       "tokens_est": 137,
       "tokens_cl100k": 184,
-      "wall_ms": 1665
+      "wall_ms": 2888
     },
     {
       "task": "fix_parse",
@@ -757,7 +757,7 @@
       "missing_expect": [],
       "tokens_est": 128,
       "tokens_cl100k": 171,
-      "wall_ms": 1666
+      "wall_ms": 2768
     },
     {
       "task": "fix_fib",
@@ -773,7 +773,7 @@
       "missing_expect": [],
       "tokens_est": 127,
       "tokens_cl100k": 172,
-      "wall_ms": 1875
+      "wall_ms": 2730
     },
     {
       "task": "fix_fib",
@@ -789,7 +789,7 @@
       "missing_expect": [],
       "tokens_est": 118,
       "tokens_cl100k": 158,
-      "wall_ms": 1966
+      "wall_ms": 2810
     },
     {
       "task": "rename_sum",
@@ -805,7 +805,7 @@
       "missing_expect": [],
       "tokens_est": 47,
       "tokens_cl100k": 74,
-      "wall_ms": 883
+      "wall_ms": 1567
     },
     {
       "task": "rename_sum",
@@ -820,7 +820,7 @@
       "missing_expect": [],
       "tokens_est": 35,
       "tokens_cl100k": 44,
-      "wall_ms": 940
+      "wall_ms": 1550
     },
     {
       "task": "rename_plus",
@@ -836,7 +836,7 @@
       "missing_expect": [],
       "tokens_est": 47,
       "tokens_cl100k": 74,
-      "wall_ms": 899
+      "wall_ms": 1446
     },
     {
       "task": "rename_plus",
@@ -851,7 +851,7 @@
       "missing_expect": [],
       "tokens_est": 35,
       "tokens_cl100k": 44,
-      "wall_ms": 944
+      "wall_ms": 1498
     },
     {
       "task": "rename_total",
@@ -867,7 +867,7 @@
       "missing_expect": [],
       "tokens_est": 47,
       "tokens_cl100k": 74,
-      "wall_ms": 902
+      "wall_ms": 1426
     },
     {
       "task": "rename_total",
@@ -882,7 +882,7 @@
       "missing_expect": [],
       "tokens_est": 36,
       "tokens_cl100k": 44,
-      "wall_ms": 917
+      "wall_ms": 1578
     },
     {
       "task": "rename_combine",
@@ -898,7 +898,7 @@
       "missing_expect": [],
       "tokens_est": 48,
       "tokens_cl100k": 74,
-      "wall_ms": 897
+      "wall_ms": 1473
     },
     {
       "task": "rename_combine",
@@ -913,7 +913,7 @@
       "missing_expect": [],
       "tokens_est": 36,
       "tokens_cl100k": 44,
-      "wall_ms": 1108
+      "wall_ms": 1463
     },
     {
       "task": "lint_unused_var",
@@ -929,7 +929,7 @@
       "missing_expect": [],
       "tokens_est": 128,
       "tokens_cl100k": 167,
-      "wall_ms": 263
+      "wall_ms": 322
     },
     {
       "task": "lint_unused_var",
@@ -945,7 +945,7 @@
       "missing_expect": [],
       "tokens_est": 89,
       "tokens_cl100k": 107,
-      "wall_ms": 232
+      "wall_ms": 296
     },
     {
       "task": "lint_needless_mut",
@@ -961,7 +961,7 @@
       "missing_expect": [],
       "tokens_est": 121,
       "tokens_cl100k": 168,
-      "wall_ms": 203
+      "wall_ms": 261
     },
     {
       "task": "lint_needless_mut",
@@ -977,7 +977,7 @@
       "missing_expect": [],
       "tokens_est": 85,
       "tokens_cl100k": 109,
-      "wall_ms": 227
+      "wall_ms": 291
     },
     {
       "task": "type_return_string",
@@ -993,7 +993,7 @@
       "missing_expect": [],
       "tokens_est": 121,
       "tokens_cl100k": 166,
-      "wall_ms": 1047
+      "wall_ms": 1613
     },
     {
       "task": "type_return_string",
@@ -1009,7 +1009,7 @@
       "missing_expect": [],
       "tokens_est": 50,
       "tokens_cl100k": 71,
-      "wall_ms": 1066
+      "wall_ms": 1817
     },
     {
       "task": "syntax_missing_semi",
@@ -1025,7 +1025,7 @@
       "missing_expect": [],
       "tokens_est": 122,
       "tokens_cl100k": 183,
-      "wall_ms": 1057
+      "wall_ms": 2135
     },
     {
       "task": "syntax_missing_semi",
@@ -1041,7 +1041,7 @@
       "missing_expect": [],
       "tokens_est": 75,
       "tokens_cl100k": 116,
-      "wall_ms": 1093
+      "wall_ms": 1638
     }
   ]
 }

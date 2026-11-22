@@ -55,7 +55,7 @@ impl Tool for GitTool {
         "git"
     }
     fn description(&self) -> &'static str {
-        "Git read ops plus gated commit/push; compact deterministic output."
+        "Git status, diff, log, commit, push; compact."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly
@@ -236,16 +236,9 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
     let mut reference = a.reference.clone();
     let mut final_paths = paths.clone();
     if let Some(r) = reference.as_deref() {
-        let verify = git(
-            ctx,
-            &[
-                "rev-parse",
-                "--revs-only",
-                "--quiet",
-                r,
-            ],
-        );
-        let is_ref = matches!(verify, Ok(o) if o.exit.is_success() && !o.stdout_str().trim().is_empty());
+        let verify = git(ctx, &["rev-parse", "--revs-only", "--quiet", r]);
+        let is_ref =
+            matches!(verify, Ok(o) if o.exit.is_success() && !o.stdout_str().trim().is_empty());
         if !is_ref {
             final_paths.insert(0, r.to_string());
             reference = None;

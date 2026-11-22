@@ -272,7 +272,10 @@ mod tests {
                 called = true;
                 true
             });
-            assert!(!called, "closure should not be called under lock contention");
+            assert!(
+                !called,
+                "closure should not be called under lock contention"
+            );
             assert!(!result, "should return Default on lock contention");
 
             unsafe {

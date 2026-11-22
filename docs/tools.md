@@ -20,17 +20,17 @@ JSON schemas are generated from the same argument structs and exposed over MCP
 
 ## Arguments
 
-- `tree`: `path="."`, `depth=2` (0 = unlimited), `glob`, `sizes=false`.
+- `tree`: `path="."`, `depth=2` (0 = unlimited), `glob`, `sizes=false`, `dirs_only=false`.
   Collapsed directories render as `name/ (N) ~h`; small leaf directories at a
-  depth boundary may be shown inline. Large file groups become `~h` handles.
+  depth boundary may be shown inline. Large file groups become `~h` handles. When `dirs_only=true`, omits regular files and formats header as `{display}/ ({dirs} dirs)`.
 - `read`: `path`, optional `lines="A:B"` (1-based, clamped), `symbol`,
   `outline=false`, `expect_hash`, `force=false`. Repeated unchanged reads return
   `unchanged <path> (b3:...) expand ~h`; `force=true` re-emits content. Large
   files emit head, `...+N lines (~h)`, then outline symbols beyond the head
   (capped) and `+N more symbols (~h)` when needed.
 - `search`: `pattern`, `mode="text"|"regex"|"symbol"`, `path="."` (or multiple paths), `paths`, `glob`, `context=0`,
-  `limit`. Returns ranked matches; CLI accepts multiple positional paths and
-  `-e/--regexp <pattern>` (e.g. `w search -e pat src tests`). Text mode retries
+  `limit`, `stats=false`. Returns ranked matches; CLI accepts multiple positional paths and
+  `-e/--regexp <pattern>` (e.g. `w search -e pat src tests`). When `stats=true`, appends footer `# stats: scanned N files, M matches`. Text mode retries
   safe `a|b` alternation on zero literal matches (`# '|' alternation`) or notes
   `# '|' literal; try mode=regex`. Repeated identical searches may return
   `unchanged search (N files, M matches)`. Counts use singular/plural forms;
