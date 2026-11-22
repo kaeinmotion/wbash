@@ -776,13 +776,31 @@ fn fill_positionals(tool: &str, obj: &mut Map<String, Value>, pos: &[String]) ->
         }
         "edit" => {
             if let Some(p) = pos.first() {
-                put("path", p);
-            }
-            if let Some(p) = pos.get(1) {
-                put("find", p);
-            }
-            if let Some(p) = pos.get(2) {
-                put("replace", p);
+                if let Some((file, lines_str)) = split_file_line_suffix(p) {
+                    put("path", &file);
+                    put("lines", &lines_str);
+                    if let Some(r) = pos.get(1) {
+                        put("replace", r);
+                    }
+                } else {
+                    put("path", p);
+                    if let Some(arg1) = pos.get(1) {
+                        let is_line_spec = (arg1.contains(':')
+                            && arg1.chars().all(|c| c.is_ascii_digit() || c == ':'))
+                            || (!arg1.is_empty() && arg1.chars().all(|c| c.is_ascii_digit()));
+                        if is_line_spec {
+                            put("lines", arg1);
+                            if let Some(r) = pos.get(2) {
+                                put("replace", r);
+                            }
+                        } else {
+                            put("find", arg1);
+                            if let Some(r) = pos.get(2) {
+                                put("replace", r);
+                            }
+                        }
+                    }
+                }
             }
         }
         "search" => {
@@ -829,7 +847,9 @@ fn fill_positionals(tool: &str, obj: &mut Map<String, Value>, pos: &[String]) ->
                     } else {
                         let mut calls = Vec::new();
                         for p in pos {
-                            calls.push(parse_subcommand_to_call(p)?);
+                            for subcmd in split_cmd_chain(p) {
+                                calls.push(parse_subcommand_to_call(&subcmd)?);
+                            }
                         }
                         obj.insert("calls".into(), Value::Array(calls));
                     }
@@ -1093,10 +1113,56 @@ fn resolve_tool_args(tool: &str, rest: &[String]) -> Result<Map<String, Value>> 
     Ok(obj)
 }
 
+fn split_cmd_chain(input: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut cur = String::new();
+    let mut in_quote = None;
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        match (c, in_quote) {
+            ('"' | '\'', None) => {
+                in_quote = Some(c);
+                cur.push(c);
+            }
+            (q, Some(cur_q)) if q == cur_q => {
+                in_quote = None;
+                cur.push(c);
+            }
+            (';', None) => {
+                let trimmed = cur.trim();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed.to_string());
+                }
+                cur.clear();
+            }
+            ('&', None) if chars.peek() == Some(&'&') => {
+                chars.next();
+                let trimmed = cur.trim();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed.to_string());
+                }
+                cur.clear();
+            }
+            (c, _) => cur.push(c),
+        }
+    }
+    let trimmed = cur.trim();
+    if !trimmed.is_empty() {
+        parts.push(trimmed.to_string());
+    }
+    parts
+}
+
 fn parse_subcommand_to_call(cmd_str: &str) -> Result<Value> {
-    let raw_tokens = split_cmd_tokens(cmd_str);
+    let mut raw_tokens = split_cmd_tokens(cmd_str);
     if raw_tokens.is_empty() {
         return Err(WErr::invalid_args("empty command in batch", "w batch \"<tool> [args]\" ..."));
+    }
+    if raw_tokens[0] == "w" || raw_tokens[0] == "wbash" {
+        raw_tokens.remove(0);
+        if raw_tokens.is_empty() {
+            return Err(WErr::invalid_args("empty command in batch", "w batch \"<tool> [args]\" ..."));
+        }
     }
     let sub_tool = canonical_tool(&raw_tokens[0]);
     let sub_rest = &raw_tokens[1..];
@@ -1296,25 +1362,21 @@ fn cmd_config(tokens: &[String], global: &Global) -> Result<i32> {
 
 fn print_help() {
     println!(
-        "w - workspace tool for AI agents ({})",
+        "w - token-efficient workspace engine for agents ({})",
         env!("CARGO_PKG_VERSION")
     );
-    println!(
-        "usage: w [--root DIR] [--session ID] [--format lean|json] [--budget N] <tool> [opts]"
-    );
+    println!("usage: w <command> [args]");
     println!();
-    println!(
-        "tools: tree(t) read(r) search(s) edit(e) replace(p) run(u) check(c) git(g) expand(x) batch(b) sh"
-    );
-    println!("utility: gain discover config handles parser");
-    println!();
-    println!("examples:");
-    println!("  w tree src --depth 2");
-    println!("  w read src/main.rs 1:40");
-    println!("  w search parse_config src");
-    println!("  w run -- cargo test -q");
-    println!("  w git diff --stat");
-    println!("  w expand ~r7 --grep error");
+    println!("ultra-short commands:");
+    println!("  w s <pat> [path]                search (alias: s)");
+    println!("  w r <paths...> [lines]          read (supports file:1:40, multi-file)");
+    println!("  w e <path> [find/lines] [repl]  edit (exact/fuzzy anchor or line range)");
+    println!("  w p <find> <repl> [path]        replace across files");
+    println!("  w u <command...>                run executable (e.g. w u cargo test -q)");
+    println!("  w c [kind]                      check (all|build|test|lint)");
+    println!("  w g <status|diff|commit|push>   git operations");
+    println!("  w b \"<cmd 1>\" \"<cmd 2>\"         batch (supports ; and && chaining)");
+    println!("  w x <id>                        expand handle (~id or bare id)");
 }
 
 // ---------------------------------------------------------------------------
@@ -1460,5 +1522,47 @@ mod tests {
         )
         .unwrap();
         assert_eq!(pos, vec!["cargo", "test", "-q"]);
+    }
+
+    #[test]
+    fn batch_strips_w_prefix() {
+        let call = super::parse_subcommand_to_call("w r file.rs 1:5").unwrap();
+        assert_eq!(call["tool"], "read");
+        assert_eq!(call["args"]["path"], "file.rs");
+        assert_eq!(call["args"]["lines"], "1:5");
+    }
+
+    #[test]
+    fn batch_chained_delimiters() {
+        let parts = super::split_cmd_chain("r file1.rs; s pattern crates && u cargo check");
+        assert_eq!(parts, vec!["r file1.rs", "s pattern crates", "u cargo check"]);
+    }
+
+    #[test]
+    fn edit_positionals_support_line_range() {
+        let mut obj = Map::new();
+        super::fill_positionals(
+            "edit",
+            &mut obj,
+            &["src/main.rs".to_string(), "10:20".to_string(), "new content".to_string()],
+        )
+        .unwrap();
+        assert_eq!(obj["path"], "src/main.rs");
+        assert_eq!(obj["lines"], "10:20");
+        assert_eq!(obj["replace"], "new content");
+    }
+
+    #[test]
+    fn edit_positionals_support_file_line_suffix() {
+        let mut obj = Map::new();
+        super::fill_positionals(
+            "edit",
+            &mut obj,
+            &["src/main.rs:15:30".to_string(), "new content".to_string()],
+        )
+        .unwrap();
+        assert_eq!(obj["path"], "src/main.rs");
+        assert_eq!(obj["lines"], "15:30");
+        assert_eq!(obj["replace"], "new content");
     }
 }

@@ -124,6 +124,21 @@ fn tool_invariants() {
     let after = call(&mut d, "read", json!({"path": "src/config.rs"}));
     assert!(after.text.contains("path.trim().to_string()"));
 
+    // whitespace-tolerant fuzzy anchor match
+    let fuzzy = call(
+        &mut d,
+        "edit",
+        json!({
+            "path": "src/config.rs",
+            // Anchor has different indentation and trailing whitespace
+            "find": "pub fn parse_config(path: &str) -> Result<String, String> {   \n     if path.is_empty() { return Err(\"empty\".into()); }",
+            "replace": "pub fn parse_config(path: &str) -> Result<String, String> {\n    if path.is_empty() { return Err(\"none\".into()); }"
+        }),
+    );
+    assert!(fuzzy.ok, "{}", fuzzy.text);
+    let after_fuzzy = call(&mut d, "read", json!({"path": "src/config.rs"}));
+    assert!(after_fuzzy.text.contains("Err(\"none\".into())"), "{}", after_fuzzy.text);
+
     // ambiguous anchor
     std::fs::write(root.join("dup.txt"), "x\nx\n").unwrap();
     let amb = call(

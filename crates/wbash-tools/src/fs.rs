@@ -469,10 +469,12 @@ impl Tool for ReadTool {
         if let Some(spec) = &a.lines {
             let (start, end) = parse_line_range_clamped(spec, line_count)?;
             let count = end - start + 1;
-            let mut r = ToolResult::new(
-                "read",
-                format!("{display}:{start}-{end} ({count} lines, {short})"),
-            );
+            let header = if a.expect_hash.is_some() {
+                format!("{display}:{start}-{end} ({count} lines, {short})")
+            } else {
+                format!("{display}:{start}-{end} ({count} lines)")
+            };
+            let mut r = ToolResult::new("read", header);
             if spec_mismatch(spec, start, end, line_count) {
                 r.note(format!("clamped {spec} -> {start}:{end}"));
             }
@@ -773,6 +775,55 @@ struct EditArgs {
     expect_hash: Option<String>,
 }
 
+fn fuzzy_match_anchor(old: &str, find: &str) -> Option<(usize, usize)> {
+    let find_trimmed_lines: Vec<&str> = find
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    if find_trimmed_lines.is_empty() {
+        return None;
+    }
+    let mut old_lines = Vec::new();
+    let mut offset = 0;
+    for line in old.split_inclusive('\n') {
+        let trimmed = line.trim();
+        let start = offset;
+        let end = offset + line.len();
+        offset = end;
+        if !trimmed.is_empty() {
+            old_lines.push((start, end, trimmed));
+        }
+    }
+    if old_lines.len() < find_trimmed_lines.len() {
+        return None;
+    }
+    let mut matches = Vec::new();
+    let n = find_trimmed_lines.len();
+    for i in 0..=(old_lines.len() - n) {
+        let mut matched = true;
+        for j in 0..n {
+            if old_lines[i + j].2 != find_trimmed_lines[j] {
+                matched = false;
+                break;
+            }
+        }
+        if matched {
+            let match_start = old_lines[i].0;
+            let match_end = old_lines[i + n - 1].1;
+            matches.push((match_start, match_end));
+            if matches.len() > 1 {
+                return None;
+            }
+        }
+    }
+    if matches.len() == 1 {
+        Some(matches[0])
+    } else {
+        None
+    }
+}
+
 impl Tool for EditTool {
     fn name(&self) -> &'static str {
         "edit"
@@ -969,7 +1020,7 @@ impl Tool for EditTool {
                 ));
             }
             let mut it = old.match_indices(find.as_str()).map(|(i, _)| i);
-            let pos = match it.next() {
+            let pos_and_len = match it.next() {
                 Some(pos) => {
                     if let Some(second) = it.next() {
                         let mut positions = vec![pos, second];
@@ -996,10 +1047,20 @@ impl Tool for EditTool {
                             format!("try: w read path={display} lines=<start>:<end>"),
                         ));
                     }
-                    pos
+                    Some((pos, find.len()))
                 }
                 None => {
-                    // Helpful hint if whitespace or line endings differ
+                    // Try whitespace-relaxed fallback
+                    if let Some((start, end)) = fuzzy_match_anchor(&old, find) {
+                        Some((start, end - start))
+                    } else {
+                        None
+                    }
+                }
+            };
+            let (pos, match_len) = match pos_and_len {
+                Some(p) => p,
+                None => {
                     let hint = if (find.contains("\r\n") != old.contains("\r\n"))
                         || (find.contains('\t') != old.contains('\t'))
                     {
@@ -1017,7 +1078,7 @@ impl Tool for EditTool {
             let mut new = String::with_capacity(old.len() + replace.len());
             new.push_str(&old[..pos]);
             new.push_str(&replace);
-            new.push_str(&old[pos + find.len()..]);
+            new.push_str(&old[pos + match_len..]);
             let ins = replace.lines().count().max(1);
             let del = find.lines().count().max(1);
             (new, ins, del)
