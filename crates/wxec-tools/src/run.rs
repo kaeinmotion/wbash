@@ -293,6 +293,7 @@ pub fn record_output(
                     }
                 } else {
                     // prefer tail summary lines (e.g. "test result: ok...")
+                    let mut matched_any = false;
                     for l in ring.iter().rev().take(4).rev() {
                         if l.contains("test result")
                             || l.contains(" passed")
@@ -302,6 +303,12 @@ pub fn record_output(
                             || l.contains("error:")
                             || l.contains("failed")
                         {
+                            result.low((*l).to_string());
+                            matched_any = true;
+                        }
+                    }
+                    if !matched_any {
+                        for l in ring.iter().rev().take(4).rev() {
                             result.low((*l).to_string());
                         }
                     }
