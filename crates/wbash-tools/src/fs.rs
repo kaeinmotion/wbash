@@ -275,10 +275,13 @@ fn human_size(n: u64) -> String {
 
 pub struct ReadTool;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ReadArgs {
+    #[serde(default)]
     path: String,
+    #[serde(default)]
+    paths: Vec<String>,
     lines: Option<String>,
     symbol: Option<String>,
     #[serde(default)]
@@ -303,13 +306,13 @@ impl Tool for ReadTool {
             "type": "object",
             "properties": {
                 "path": {"type": "string"},
+                "paths": {"type": "array", "items": {"type": "string"}},
                 "lines": {"type": "string"},
                 "symbol": {"type": "string"},
                 "outline": {"type": "boolean", "default": false},
                 "expect_hash": {"type": "string"},
                 "force": {"type": "boolean", "default": false}
             },
-            "required": ["path"],
             "additionalProperties": false
         })
     }
@@ -319,6 +322,26 @@ impl Tool for ReadTool {
             "read",
             "pass path plus optional lines, symbol, outline, expect_hash, force",
         )?;
+        if !a.paths.is_empty() {
+            let mut r = ToolResult::new("read", format!("{} files", a.paths.len()));
+            for p in &a.paths {
+                let mut single_args = a.clone();
+                single_args.path = p.clone();
+                single_args.paths.clear();
+                let sub = self.call(&serde_json::to_value(&single_args).unwrap_or_default(), ctx)?;
+                r.push(Item::new(ItemClass::High, 5.0, vec![format!("--- {} ---", sub.header)]));
+                for item in sub.items {
+                    r.push(item);
+                }
+                for h in sub.handles {
+                    r.handle(h);
+                }
+            }
+            return Ok(r);
+        }
+        if a.path.is_empty() {
+            return Err(WErr::invalid_args("read requires path or paths", "read path=<file>"));
+        }
         let abs = ctx.resolve(&a.path, true)?;
         if abs.is_dir() {
             return Err(WErr::with_hint(

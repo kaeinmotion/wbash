@@ -139,61 +139,7 @@ fn run_inner(argv: Vec<String>) -> Result<i32> {
         return Ok(0);
     }
 
-    let (mut obj, positionals, after_dd) = parse_tool_args(&rest, &tool)?;
-    let merged_pos = if matches!(tool.as_str(), "run" | "sh") {
-        positionals.clone()
-    } else {
-        let mut p = positionals.clone();
-        p.extend(after_dd.clone());
-        p
-    };
-    if tool == "run" || tool == "sh" {
-        if tool == "run" {
-            let mut argv = positionals.clone();
-            if argv.is_empty() {
-                argv = after_dd.clone();
-            } else if !after_dd.is_empty() {
-                argv.extend(after_dd.clone());
-            }
-            if !argv.is_empty() {
-                obj.insert(
-                    "argv".into(),
-                    Value::Array(argv.into_iter().map(Value::String).collect()),
-                );
-            }
-        } else {
-            let cmd = if !positionals.is_empty() {
-                positionals.join(" ")
-            } else {
-                after_dd.join(" ")
-            };
-            if !cmd.is_empty() {
-                obj.insert("command".into(), Value::String(cmd));
-            }
-        }
-    } else if tool == "git" {
-        build_git_args(&mut obj, &merged_pos)?;
-    } else if tool == "search" {
-        if obj.contains_key("pattern") {
-            if merged_pos.len() == 1 {
-                obj.insert("path".into(), Value::String(merged_pos[0].clone()));
-            } else if merged_pos.len() > 1 {
-                let paths: Vec<Value> = merged_pos.iter().cloned().map(Value::String).collect();
-                obj.insert("paths".into(), Value::Array(paths));
-            }
-        } else if !merged_pos.is_empty() {
-            obj.insert("pattern".into(), Value::String(merged_pos[0].clone()));
-            if merged_pos.len() == 2 {
-                obj.insert("path".into(), Value::String(merged_pos[1].clone()));
-            } else if merged_pos.len() > 2 {
-                let paths: Vec<Value> =
-                    merged_pos[1..].iter().cloned().map(Value::String).collect();
-                obj.insert("paths".into(), Value::Array(paths));
-            }
-        }
-    } else {
-        fill_positionals(&tool, &mut obj, &merged_pos)?;
-    }
+    let mut obj = resolve_tool_args(&tool, &rest)?;
 
     if let Some(format) = &global.format {
         obj.insert("format".into(), Value::String(format.clone()));
@@ -221,6 +167,8 @@ fn run_inner(argv: Vec<String>) -> Result<i32> {
     if let Some(tier) = &global.tier {
         let t: Tier = tier.parse()?;
         dispatcher.set_session_tier(&global.session, t)?;
+    } else {
+        dispatcher.set_session_tier(&global.session, Tier::GitWrite)?;
     }
     let rendered = dispatcher.call(&tool, &Value::Object(obj), &global.session);
     let mut out = std::io::stdout().lock();
@@ -738,6 +686,54 @@ fn insert_value(obj: &mut Map<String, Value>, key: &str, value: Value) {
     }
 }
 
+fn split_cmd_tokens(cmd: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut cur = String::new();
+    let mut in_quote = None;
+    for c in cmd.chars() {
+        match (c, in_quote) {
+            ('"' | '\'', None) => in_quote = Some(c),
+            (q, Some(cur_q)) if q == cur_q => in_quote = None,
+            (' ' | '\t', None) => {
+                if !cur.is_empty() {
+                    tokens.push(std::mem::take(&mut cur));
+                }
+            }
+            (c, _) => cur.push(c),
+        }
+    }
+    if !cur.is_empty() {
+        tokens.push(cur);
+    }
+    tokens
+}
+
+fn split_file_line_suffix(p: &str) -> Option<(String, String)> {
+    let parts: Vec<&str> = p.rsplitn(3, ':').collect();
+    if parts.len() == 3 && !parts[0].is_empty() && !parts[1].is_empty() {
+        if parts[0].chars().all(|c| c.is_ascii_digit())
+            && parts[1].chars().all(|c| c.is_ascii_digit())
+        {
+            let start = parts[1];
+            let end = parts[0];
+            let file = parts[2];
+            if !file.is_empty() {
+                return Some((file.to_string(), format!("{start}:{end}")));
+            }
+        }
+    }
+    if parts.len() >= 2 && !parts[0].is_empty() {
+        if parts[0].chars().all(|c| c.is_ascii_digit()) {
+            let line = parts[0];
+            let file = &p[..p.len() - line.len() - 1];
+            if !file.is_empty() {
+                return Some((file.to_string(), format!("{line}:{line}")));
+            }
+        }
+    }
+    None
+}
+
 fn fill_positionals(tool: &str, obj: &mut Map<String, Value>, pos: &[String]) -> Result<()> {
     let mut put = |key: &str, val: &str| {
         if !obj.contains_key(key) {
@@ -750,16 +746,43 @@ fn fill_positionals(tool: &str, obj: &mut Map<String, Value>, pos: &[String]) ->
                 put("path", p);
             }
         }
-        "read" | "blame" | "edit" => {
+        "read" => {
+            let mut file_paths = Vec::new();
+            for p in pos {
+                if p.contains(':') && p.chars().all(|c| c.is_ascii_digit() || c == ':') {
+                    put("lines", p);
+                } else if !p.starts_with('-') {
+                    if let Some((file, lines_str)) = split_file_line_suffix(p) {
+                        put("lines", &lines_str);
+                        file_paths.push(file);
+                    } else {
+                        file_paths.push(p.clone());
+                    }
+                }
+            }
+            if file_paths.len() == 1 {
+                put("path", &file_paths[0]);
+            } else if file_paths.len() > 1 {
+                obj.insert(
+                    "paths".into(),
+                    Value::Array(file_paths.into_iter().map(Value::String).collect()),
+                );
+            }
+        }
+        "blame" => {
             if let Some(p) = pos.first() {
                 put("path", p);
             }
-            if tool == "read" {
-                for p in pos.iter().skip(1) {
-                    if p.contains(':') && p.chars().all(|c| c.is_ascii_digit() || c == ':') {
-                        put("lines", p);
-                    }
-                }
+        }
+        "edit" => {
+            if let Some(p) = pos.first() {
+                put("path", p);
+            }
+            if let Some(p) = pos.get(1) {
+                put("find", p);
+            }
+            if let Some(p) = pos.get(2) {
+                put("replace", p);
             }
         }
         "search" => {
@@ -792,16 +815,24 @@ fn fill_positionals(tool: &str, obj: &mut Map<String, Value>, pos: &[String]) ->
             }
         }
         "batch" => {
-            if pos.len() > 1 {
-                return Err(WErr::invalid_args(
-                    format!("{tool}: unexpected positional '{}'", pos[1]),
-                    format!("see `w {tool} --help`"),
-                ));
-            }
-            if let Some(p) = pos.first() {
-                if !obj.contains_key("calls") {
-                    let v = p.strip_prefix("calls=").unwrap_or(p);
-                    obj.insert("calls".into(), parse_scalar_for("calls", v));
+            if !obj.contains_key("calls") {
+                if let Some(first) = pos.first() {
+                    let v = first.strip_prefix("calls=").unwrap_or(first);
+                    if v.trim_start().starts_with('[') {
+                        if pos.len() > 1 {
+                            return Err(WErr::invalid_args(
+                                format!("{tool}: unexpected positional '{}'", pos[1]),
+                                format!("see `w {tool} --help`"),
+                            ));
+                        }
+                        obj.insert("calls".into(), parse_scalar_for("calls", v));
+                    } else {
+                        let mut calls = Vec::new();
+                        for p in pos {
+                            calls.push(parse_subcommand_to_call(p)?);
+                        }
+                        obj.insert("calls".into(), Value::Array(calls));
+                    }
                 }
             }
         }
@@ -1001,6 +1032,79 @@ fn build_git_args(obj: &mut Map<String, Value>, pos: &[String]) -> Result<()> {
         _ => {}
     }
     Ok(())
+}
+
+fn resolve_tool_args(tool: &str, rest: &[String]) -> Result<Map<String, Value>> {
+    let (mut obj, positionals, after_dd) = parse_tool_args(rest, tool)?;
+    let merged_pos = if matches!(tool, "run" | "sh") {
+        positionals.clone()
+    } else {
+        let mut p = positionals.clone();
+        p.extend(after_dd.clone());
+        p
+    };
+    if tool == "run" || tool == "sh" {
+        if tool == "run" {
+            let mut argv = positionals.clone();
+            if argv.is_empty() {
+                argv = after_dd.clone();
+            } else if !after_dd.is_empty() {
+                argv.extend(after_dd.clone());
+            }
+            if !argv.is_empty() {
+                obj.insert(
+                    "argv".into(),
+                    Value::Array(argv.into_iter().map(Value::String).collect()),
+                );
+            }
+        } else {
+            let cmd = if !positionals.is_empty() {
+                positionals.join(" ")
+            } else {
+                after_dd.join(" ")
+            };
+            if !cmd.is_empty() {
+                obj.insert("command".into(), Value::String(cmd));
+            }
+        }
+    } else if tool == "git" {
+        build_git_args(&mut obj, &merged_pos)?;
+    } else if tool == "search" {
+        if obj.contains_key("pattern") {
+            if merged_pos.len() == 1 {
+                obj.insert("path".into(), Value::String(merged_pos[0].clone()));
+            } else if merged_pos.len() > 1 {
+                let paths: Vec<Value> = merged_pos.iter().cloned().map(Value::String).collect();
+                obj.insert("paths".into(), Value::Array(paths));
+            }
+        } else if !merged_pos.is_empty() {
+            obj.insert("pattern".into(), Value::String(merged_pos[0].clone()));
+            if merged_pos.len() == 2 {
+                obj.insert("path".into(), Value::String(merged_pos[1].clone()));
+            } else if merged_pos.len() > 2 {
+                let paths: Vec<Value> =
+                    merged_pos[1..].iter().cloned().map(Value::String).collect();
+                obj.insert("paths".into(), Value::Array(paths));
+            }
+        }
+    } else {
+        fill_positionals(tool, &mut obj, &merged_pos)?;
+    }
+    Ok(obj)
+}
+
+fn parse_subcommand_to_call(cmd_str: &str) -> Result<Value> {
+    let raw_tokens = split_cmd_tokens(cmd_str);
+    if raw_tokens.is_empty() {
+        return Err(WErr::invalid_args("empty command in batch", "w batch \"<tool> [args]\" ..."));
+    }
+    let sub_tool = canonical_tool(&raw_tokens[0]);
+    let sub_rest = &raw_tokens[1..];
+    let sub_obj = resolve_tool_args(&sub_tool, sub_rest)?;
+    Ok(serde_json::json!({
+        "tool": sub_tool,
+        "args": Value::Object(sub_obj)
+    }))
 }
 
 // ---------------------------------------------------------------------------
