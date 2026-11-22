@@ -10,11 +10,9 @@ wxec is an ultra token-efficient model context protocol (mcp) server and executi
 
 ### **documentation**
 
-all documentation, setup guides, benchmarks, and specifications are located in the [docs/](docs/) directory:
-
-- [docs/guide.md](docs/guide.md): user guide, 1-click client configurations (cursor, claude, cline, docker), benchmarks, and configuration.
-- [docs/tools.md](docs/tools.md): available mcp tools, parameter schemas, and usage examples.
-- [docs/security.md](docs/security.md): security model, workspace jailing, and permission tiers.
+- [docs/guide.md](docs/guide.md):                       user guide, 1-click client configurations (cursor, claude, cline, docker), benchmarks, and configuration.
+- [docs/tools.md](docs/tools.md):                       available mcp tools, parameter schemas, and usage examples.
+- [docs/security.md](docs/security.md):                 security model, workspace jailing, and permission tiers.
 - [docs/wire-format-v0.2.md](docs/wire-format-v0.2.md): wire protocol, handle store, and token estimators.
 
 ### **quick start**
