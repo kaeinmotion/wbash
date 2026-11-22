@@ -7,7 +7,7 @@ wxec
 
 wxec is an ultra token-efficient model context protocol (mcp) server and execution engine for ai coding agents (claude, cursor, cline, windsurf, antigravity). it connects agents directly to your workspace, cuts context tokens by up to 84%, and executes multi-step workflows in a single turn with lossless memory handles.
 
-### **documentation**
+### documentation
 
 - [docs/guide.md](docs/guide.md):                       user guide, 1-click client configurations (cursor, claude, cline, docker), benchmarks, and configuration.
 - [docs/tools.md](docs/tools.md):                       available mcp tools, parameter schemas, and usage examples.
@@ -30,4 +30,4 @@ npx -y @smithery/cli install kaeinmotion/wxec --client cursor
 
 ### **license**
 
-mit. see [license](LICENSE) for full text.
+mit.
