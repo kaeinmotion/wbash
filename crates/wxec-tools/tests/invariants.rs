@@ -269,3 +269,26 @@ fn search_stats_flag() {
     );
     assert!(s.text.contains("# stats: scanned"), "{}", s.text);
 }
+
+#[test]
+fn test_ergonomic_tool_features() {
+    let (root, mut d) = setup();
+    d.set_session_tier("s", Tier::WriteWorkspace).unwrap();
+
+    // 1. tree with dirs_only
+    let tree_dirs = call(&mut d, "tree", json!({"dirs_only": true}));
+    assert!(tree_dirs.ok, "{}", tree_dirs.text);
+    assert!(tree_dirs.text.contains("src/"), "{}", tree_dirs.text);
+    assert!(!tree_dirs.text.contains("main.rs"), "dirs_only should not show leaf files: {}", tree_dirs.text);
+
+    // 2. read with start_line and end_line
+    let read_range = call(&mut d, "read", json!({"path": "src/config.rs", "start_line": 1, "end_line": 2}));
+    assert!(read_range.ok, "{}", read_range.text);
+    assert!(read_range.text.contains("1: //! Config."), "{}", read_range.text);
+    assert!(!read_range.text.contains("3:"), "{}", read_range.text);
+
+    // 3. edit with content creating a file without explicit create: true
+    let edit_auto_create = call(&mut d, "edit", json!({"path": "new_created.txt", "content": "hello auto create"}));
+    assert!(edit_auto_create.ok, "{}", edit_auto_create.text);
+    assert!(root.join("new_created.txt").exists());
+}

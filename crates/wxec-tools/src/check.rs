@@ -68,12 +68,19 @@ impl Tool for CheckTool {
             "check",
             "pass kind=all|build|lint|types|test and optional path",
         )?;
-        if !matches!(a.kind.as_str(), "all" | "build" | "lint" | "types" | "test") {
-            return Err(WErr::invalid_args(
-                format!("unknown kind '{}'", a.kind),
-                "use all|build|lint|types|test",
-            ));
-        }
+        let kind = match a.kind.to_ascii_lowercase().as_str() {
+            "all" | "check" => "all".to_string(),
+            "build" => "build".to_string(),
+            "lint" | "lints" => "lint".to_string(),
+            "types" | "type" | "typecheck" => "types".to_string(),
+            "test" | "tests" => "test".to_string(),
+            other => {
+                return Err(WErr::invalid_args(
+                    format!("unknown kind '{other}'"),
+                    "use all|build|lint|types|test",
+                ));
+            }
+        };
         let target = ctx.resolve(&a.path, true)?;
         let base = if target.is_dir() {
             target.clone()
@@ -81,7 +88,7 @@ impl Tool for CheckTool {
             target.parent().unwrap_or(ctx.root).to_path_buf()
         };
         let project = detect_root(ctx.root, &base).unwrap_or_else(|| base.clone());
-        let cache_key = (project.clone(), a.kind.clone());
+        let cache_key = (project.clone(), kind.clone());
         let mut commands = {
             let cached = detect_cache()
                 .lock()
@@ -90,7 +97,7 @@ impl Tool for CheckTool {
             if let Some(cmds) = cached {
                 cmds
             } else {
-                let cmds = detect_commands(&project, &a.kind)?;
+                let cmds = detect_commands(&project, &kind)?;
                 if let Ok(mut g) = detect_cache().lock() {
                     g.insert(cache_key, cmds.clone());
                 }

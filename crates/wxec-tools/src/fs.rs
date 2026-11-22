@@ -27,11 +27,14 @@ pub struct TreeTool;
 struct TreeArgs {
     #[serde(default = "dot")]
     path: String,
-    #[serde(default = "two")]
+    #[serde(default = "two", alias = "max_depth", alias = "level")]
     depth: u32,
+    #[serde(alias = "pattern")]
     glob: Option<String>,
     #[serde(default)]
     sizes: bool,
+    #[serde(default, alias = "directories_only", alias = "only_dirs")]
+    dirs_only: bool,
 }
 
 fn dot() -> String {
@@ -58,13 +61,14 @@ impl Tool for TreeTool {
                 "path": {"type": "string", "default": "."},
                 "depth": {"type": "integer", "minimum": 0, "default": 2},
                 "glob": {"type": "string"},
-                "sizes": {"type": "boolean", "default": false}
+                "sizes": {"type": "boolean", "default": false},
+                "dirs_only": {"type": "boolean", "default": false}
             },
             "additionalProperties": false
         })
     }
     fn call(&self, args: &Value, ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
-        let a: TreeArgs = parse_args(args.clone(), "tree", "pass path, depth, glob or sizes")?;
+        let a: TreeArgs = parse_args(args.clone(), "tree", "pass path, depth, glob, sizes or dirs_only")?;
         let base = ctx.resolve(&a.path, true)?;
         if !base.is_dir() {
             return Err(WErr::with_hint(
@@ -116,7 +120,7 @@ impl Tool for TreeTool {
         } else {
             a.depth as usize
         };
-        render_tree(&mut result, &root, 0, max_depth, a.sizes, ctx)?;
+        render_tree(&mut result, &root, 0, max_depth, a.sizes, a.dirs_only, ctx)?;
         result
             .meta
             .counts
@@ -162,6 +166,7 @@ fn render_tree(
     level: usize,
     max_depth: usize,
     sizes: bool,
+    dirs_only: bool,
     ctx: &mut ToolContext<'_>,
 ) -> Result<()> {
     let indent = "  ".repeat(level);
@@ -194,8 +199,11 @@ fn render_tree(
                 5.0,
                 vec![format!("{indent}{name}/")],
             ));
-            render_tree(result, child, level + 1, max_depth, sizes, ctx)?;
+            render_tree(result, child, level + 1, max_depth, sizes, dirs_only, ctx)?;
         }
+    }
+    if dirs_only {
+        return Ok(());
     }
     let mut files = node.files.clone();
     files.sort_unstable_by(|a, b| a.0.cmp(&b.0));
@@ -286,9 +294,14 @@ struct ReadArgs {
         default,
         deserialize_with = "wxec_core::args::deserialize_line_range_opt",
         alias = "range",
-        alias = "line_range"
+        alias = "line_range",
+        alias = "line"
     )]
     lines: Option<String>,
+    #[serde(alias = "start", alias = "from")]
+    start_line: Option<usize>,
+    #[serde(alias = "end", alias = "to")]
+    end_line: Option<usize>,
     symbol: Option<String>,
     #[serde(default)]
     outline: bool,
@@ -323,11 +336,16 @@ impl Tool for ReadTool {
         })
     }
     fn call(&self, args: &Value, ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
-        let a: ReadArgs = parse_args(
+        let mut a: ReadArgs = parse_args(
             args.clone(),
             "read",
             "pass path plus optional lines, symbol, outline, expect_hash, force",
         )?;
+        if a.lines.is_none() && (a.start_line.is_some() || a.end_line.is_some()) {
+            let s = a.start_line.unwrap_or(1);
+            let e = a.end_line.map(|v| v.to_string()).unwrap_or_default();
+            a.lines = Some(if e.is_empty() { format!("{s}:") } else { format!("{s}:{e}") });
+        }
         if !a.paths.is_empty() {
             let mut r = ToolResult::new("read", format!("{} files", a.paths.len()));
             for p in &a.paths {
@@ -786,10 +804,20 @@ struct EditArgs {
     path: String,
     #[serde(alias = "target", alias = "old_string", alias = "old_str")]
     find: Option<String>,
-    #[serde(alias = "replacement", alias = "new_string", alias = "new_str")]
+    #[serde(alias = "replacement", alias = "new_string", alias = "new_str", alias = "with", alias = "insert")]
     replace: Option<String>,
-    #[serde(default, deserialize_with = "wxec_core::args::deserialize_line_range_opt")]
+    #[serde(
+        default,
+        deserialize_with = "wxec_core::args::deserialize_line_range_opt",
+        alias = "range",
+        alias = "line_range",
+        alias = "line"
+    )]
     lines: Option<String>,
+    #[serde(alias = "start", alias = "from")]
+    start_line: Option<usize>,
+    #[serde(alias = "end", alias = "to")]
+    end_line: Option<usize>,
     create: Option<bool>,
     content: Option<String>,
     overwrite: Option<bool>,
@@ -940,10 +968,24 @@ impl Tool for EditTool {
             }
         }
 
+        let mut lines = a.lines.clone();
+        if lines.is_none() && (a.start_line.is_some() || a.end_line.is_some()) {
+            let s = a.start_line.unwrap_or(1);
+            let e = a.end_line.map(|v| v.to_string()).unwrap_or_default();
+            lines = Some(if e.is_empty() { format!("{s}:") } else { format!("{s}:{e}") });
+        }
+
+        if replace.is_none() && (find.is_some() || lines.is_some()) && content.is_some() {
+            replace = content.clone();
+        }
+
+        let is_create = a.create.unwrap_or(false)
+            || (find.is_none() && lines.is_none() && !a.delete.unwrap_or(false) && content.is_some());
+
         let modes = [
             find.is_some(),
-            a.lines.is_some(),
-            a.create.unwrap_or(false),
+            lines.is_some(),
+            is_create,
             a.delete.unwrap_or(false),
         ];
         match modes.iter().filter(|m| **m).count() {
@@ -987,7 +1029,7 @@ impl Tool for EditTool {
             return Ok(r);
         }
 
-        if a.create.unwrap_or(false) {
+        if is_create {
             let content = content.clone().ok_or_else(|| {
                 WErr::invalid_args(
                     "create requires content",
@@ -1122,7 +1164,7 @@ impl Tool for EditTool {
             let del = find.lines().count().max(1);
             (new, ins, del)
         } else {
-            let spec = a.lines.as_ref().unwrap();
+            let spec = lines.as_ref().unwrap();
             let line_count = old.lines().count();
             let (start, end) = parse_line_range(spec, line_count)?;
             let eol = if old.contains("\r\n") { "\r\n" } else { "\n" };
