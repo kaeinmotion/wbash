@@ -1,27 +1,35 @@
-### **wxec user guide**
+# wxec: the definitive guide
 
-comprehensive reference for configuring, running, and orchestrating wxec mcp across ai coding environments.
+comprehensive architectural specification, operator manual, and client integration reference for wxec mcp.
+
+---
 
 ### **table of contents**
 
-- [architecture & how it works](#architecture--how-it-works)
-- [benchmarks](#benchmarks)
-- [available mcp tools](#available-mcp-tools)
-- [client configurations](#client-configurations)
-- [configuration file (.wxec.toml)](#configuration-file-wxectoml)
-- [1-turn batching workflows](#1-turn-batching-workflows)
-- [security & permission tiers](#security--permission-tiers)
+- [chapter 1: architecture & system design](#chapter-1-architecture--system-design)
+- [chapter 2: empirical benchmarks & cost reduction](#chapter-2-empirical-benchmarks--cost-reduction)
+- [chapter 3: mcp tool catalog & interfaces](#chapter-3-mcp-tool-catalog--interfaces)
+- [chapter 4: client configurations & deployment](#chapter-4-client-configurations--deployment)
+- [chapter 5: workspace runtime configuration (.wxec.toml)](#chapter-5-workspace-runtime-configuration-wxectoml)
+- [chapter 6: 1-turn atomic batching workflows](#chapter-6-1-turn-atomic-batching-workflows)
+- [chapter 7: enterprise security, jailing & permission tiers](#chapter-7-enterprise-security-jailing--permission-tiers)
 
-### **architecture & how it works**
+---
 
-- **session hash ledger**: tracks file reads and searches across agent turns; unchanged files return instant zero-cost hash acknowledgments instead of refetching the whole file.
-- **lossless handle store (`~<id>`)**: offloads large diffs, test logs, and trees to atomic cache blobs, keeping context clean while allowing instant expansion via `expand`.
-- **simd workspace cache**: in-memory directory tree with vectorized substring pre-matching (`memmem`) for 10x-50x faster searches.
-- **calibrated budget fitting**: prioritizes actionable diagnostics, test failures, and line numbers while compressing low-priority noise into handles.
+### **chapter 1: architecture & system design**
 
-### **benchmarks**
+wxec operates as an in-process, protocol-level mediator between large language models and software workspaces. traditional agents consume excessive tokens parsing unstructured terminal stdout/stderr. wxec solves this through four core subsystems:
 
-tested on real developer tasks with the `cl100k_base` tokenizer:
+- **session hash ledger**: maintains a stateful blake3 cryptographic digest of all file reads across agent turns. unchanged files return an instant 27-token acknowledgment rather than re-emitting file contents.
+- **lossless handle store (`~id`)**: large outputs (diffs, compilation logs, directory trees) exceeding context budget thresholds are offloaded to atomic cache handles. models receive high-density summaries and expand targeted line offsets on demand via `expand`.
+- **simd workspace cache**: in-memory directory index utilizing vectorized substring pre-matching (`memmem`), executing workspace-wide searches in sub-millisecond durations.
+- **calibrated budget fitting**: prioritizes actionable diagnostics, compilation errors, and exact line references while compressing ambient noise into handles.
+
+---
+
+### **chapter 2: empirical benchmarks & cost reduction**
+
+measured across real-world developer workflows using the standard `cl100k_base` tokenizer:
 
 | task | raw shell | rtk (0.37.2) | wxec mcp | token savings vs raw |
 | :--- | :---: | :---: | :---: | :---: |
@@ -32,7 +40,9 @@ tested on real developer tasks with the `cl100k_base` tokenizer:
 | `test execution` | 356 tok | 99 tok | **10 tok** | -97.2% |
 | **total benchmark tokens** | **6,257 tok** | **5,381 tok** | **1,018 tok** | **-83.7%** |
 
-### **available mcp tools**
+---
+
+### **chapter 3: mcp tool catalog & interfaces**
 
 | tool | tier | purpose | key parameters |
 | :--- | :---: | :--- | :--- |
@@ -48,7 +58,9 @@ tested on real developer tasks with the `cl100k_base` tokenizer:
 | `run` | execute | structured executable runner | `argv`/`cmd`, `cwd`, `timeout_ms` |
 | `sh` | execute | shell execution fallback | `command`, `cwd`, `timeout_ms` |
 
-### **client configurations**
+---
+
+### **chapter 4: client configurations & deployment**
 
 #### **cursor** (`.cursor/mcp.json`)
 ```json
@@ -57,6 +69,20 @@ tested on real developer tasks with the `cl100k_base` tokenizer:
     "wxec": {
       "command": "wxec",
       "args": ["--tier", "git_write"]
+    }
+  }
+}
+```
+
+#### **opencode** (`opencode.json` or `~/.config/opencode/opencode.json`)
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "wxec": {
+      "type": "local",
+      "command": ["wxec", "--tier", "git_write"],
+      "enabled": true
     }
   }
 }
@@ -93,7 +119,7 @@ claude mcp add wxec -- wxec --tier git_write
 }
 ```
 
-#### **docker (no local rust toolchain)**
+#### **docker (containerized execution)**
 ```json
 {
   "mcpServers": {
@@ -105,7 +131,9 @@ claude mcp add wxec -- wxec --tier git_write
 }
 ```
 
-### **configuration file (.wxec.toml)**
+---
+
+### **chapter 5: workspace runtime configuration (.wxec.toml)**
 
 optional `.wxec.toml` or `wxec.toml` placed in your workspace root:
 
@@ -126,9 +154,11 @@ timeout_ms = 120000
 verbosity = "minimal"
 ```
 
-### **1-turn batching workflows**
+---
 
-bundle multi-step workflows into a single round-trip turn to eliminate back-and-forth prompt latency:
+### **chapter 6: 1-turn atomic batching workflows**
+
+bundle multi-step operations into a single round-trip turn to eliminate network serialization latency:
 
 ```json
 {
@@ -136,7 +166,7 @@ bundle multi-step workflows into a single round-trip turn to eliminate back-and-
     {
       "tool": "edit",
       "args": {
-        "path": "crates/core/src/lib.rs",
+        "path": "crates/wxec-core/src/lib.rs",
         "find": "let max = 10;",
         "replace": "let max = 20;"
       }
@@ -155,10 +185,12 @@ bundle multi-step workflows into a single round-trip turn to eliminate back-and-
 
 when `stop_on_error: true` is passed, execution halts immediately after the first failing step and reports remaining calls as skipped.
 
-### **security & permission tiers**
+---
+
+### **chapter 7: enterprise security, jailing & permission tiers**
 
 - **workspace jailing**: all paths are strictly confined inside workspace root; traversal escapes (`../`) are rejected.
-- **secret redactor**: credentials, api keys, tokens, and private keys are scrubbed before reaching wire output.
+- **secret redaction**: credentials, api keys, tokens, and private keys are scrubbed before reaching wire output via high-speed regexset matching.
 - **permission tiers**:
 
 | tier | level | authorized tools |
