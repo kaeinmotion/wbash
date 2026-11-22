@@ -828,8 +828,12 @@ fn fill_positionals(tool: &str, obj: &mut Map<String, Value>, pos: &[String]) ->
             }
         }
         "check" => {
-            if let Some(p) = pos.first() {
-                put("path", p);
+            for p in pos {
+                if matches!(p.as_str(), "all" | "build" | "lint" | "types" | "test") {
+                    put("kind", p);
+                } else {
+                    put("path", p);
+                }
             }
         }
         "batch" => {
@@ -1564,5 +1568,17 @@ mod tests {
         assert_eq!(obj["path"], "src/main.rs");
         assert_eq!(obj["lines"], "15:30");
         assert_eq!(obj["replace"], "new content");
+    }
+
+    #[test]
+    fn check_positionals_support_kind_and_path() {
+        let mut obj = Map::new();
+        super::fill_positionals("check", &mut obj, &["test".to_string()]).unwrap();
+        assert_eq!(obj["kind"], "test");
+
+        let mut obj2 = Map::new();
+        super::fill_positionals("check", &mut obj2, &["lint".to_string(), "crates".to_string()]).unwrap();
+        assert_eq!(obj2["kind"], "lint");
+        assert_eq!(obj2["path"], "crates");
     }
 }

@@ -90,6 +90,14 @@ pub fn build_env(
             "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin".to_string(),
         );
     }
+    if let Some(path) = env.get_mut("PATH") {
+        if let Ok(home) = std::env::var("HOME") {
+            let cargo_bin = format!("{home}/.cargo/bin");
+            if !path.split(':').any(|p| p == cargo_bin) && std::path::Path::new(&cargo_bin).is_dir() {
+                *path = format!("{cargo_bin}:{path}");
+            }
+        }
+    }
     if let Some(extra) = per_call {
         for (k, v) in extra {
             if !env_allowed(&config.exec.env_allow, k) {

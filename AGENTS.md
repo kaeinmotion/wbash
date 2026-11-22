@@ -1,5 +1,12 @@
 # AGENTS.md
 
+## Core Developer Mission
+
+Strictly and always prioritize:
+1. **Super Short Commands**: Save prompt/input tokens. Never require boilerplate flags or paths.
+2. **Way Lesser Tool Calls**: Batch and chain operations (`w b "..."`, multi-file reads `w r f1 f2`). Solve in 1-2 turns, not dozens.
+3. **Way Lesser Output**: Zero fluff, no redundant hashes, minimal headers, maximum information density.
+
 ## Dev workflow
 
 - Always use our own `wbash` (`w`) in development. Do not use native shell commands directly.
