@@ -285,6 +285,7 @@ fn detect_root(root: &Path, start: &Path) -> Option<PathBuf> {
             "package.json",
             "pyproject.toml",
             "setup.cfg",
+            "requirements.txt",
             "go.mod",
         ] {
             if cur.join(marker).exists() {
@@ -337,7 +338,11 @@ fn detect_commands(project: &Path, kind: &str) -> Result<Vec<(String, Vec<String
         }
     }
 
-    if project.join("pyproject.toml").exists() || project.join("setup.cfg").exists() {
+    if project.join("pyproject.toml").exists()
+        || project.join("setup.cfg").exists()
+        || project.join("requirements.txt").exists()
+        || project.join("pytest.ini").exists()
+    {
         if want("test") {
             if let Some(bin) = find_executable("pytest", project) {
                 out.push(("pytest".to_string(), vec![bin, "-q".to_string()]));

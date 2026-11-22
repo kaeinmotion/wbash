@@ -38,7 +38,8 @@ pub fn globset(glob: Option<&str>) -> Result<Option<GlobSet>> {
     let Some(pattern) = glob else {
         return Ok(None);
     };
-    let glob = Glob::new(pattern).map_err(|e| {
+    let clean = pattern.strip_prefix("./").unwrap_or(pattern);
+    let glob = Glob::new(clean).map_err(|e| {
         WErr::invalid_args(
             format!("bad glob '{pattern}': {e}"),
             "use a glob like 'src/**/*.rs'",

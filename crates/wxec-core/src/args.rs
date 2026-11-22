@@ -322,13 +322,15 @@ pub fn parse_line_range_clamped(spec: &str, len: usize) -> Result<(usize, usize)
 fn parse_line_range_inner(spec: &str, len: usize, clamp: bool) -> Result<(usize, usize)> {
     let (a, b) = if let Some(pair) = spec
         .split_once(':')
+        .or_else(|| spec.split_once("..="))
         .or_else(|| spec.split_once(".."))
         .or_else(|| spec.split_once('-'))
         .or_else(|| spec.split_once(','))
     {
         pair
-    } else if spec.trim().parse::<usize>().is_ok() {
-        (spec.trim(), spec.trim())
+    } else if spec.trim().trim_start_matches('L').parse::<usize>().is_ok() {
+        let trimmed = spec.trim().trim_start_matches('L');
+        (trimmed, trimmed)
     } else {
         return Err(WErr::invalid_args(
             format!("bad lines range '{spec}'"),
@@ -338,17 +340,19 @@ fn parse_line_range_inner(spec: &str, len: usize, clamp: bool) -> Result<(usize,
     if len == 0 {
         return Err(WErr::new("invalid_range", "file has no lines"));
     }
-    let start = if a.trim().is_empty() {
+    let clean_a = a.trim().trim_start_matches('L');
+    let clean_b = b.trim().trim_start_matches('L');
+    let start = if clean_a.is_empty() {
         1
     } else {
-        a.trim().parse::<usize>().map_err(|_| {
+        clean_a.parse::<usize>().map_err(|_| {
             WErr::invalid_args(format!("bad start in lines='{spec}'"), "use lines=10:40")
         })?
     };
-    let end = if b.trim().is_empty() {
+    let end = if clean_b.is_empty() {
         len
     } else {
-        b.trim().parse::<usize>().map_err(|_| {
+        clean_b.parse::<usize>().map_err(|_| {
             WErr::invalid_args(format!("bad end in lines='{spec}'"), "use lines=10:40")
         })?
     };

@@ -566,4 +566,16 @@ fn test_ergonomic_tool_features() {
     assert!(git_create_branch.ok, "{}", git_create_branch.text);
     let git_checkout = call(&mut d, "git", json!({"op": "checkout", "branch": "feature-test"}));
     assert!(git_checkout.ok, "{}", git_checkout.text);
+
+    // 23. rust range syntax and L-prefixed ranges in read, plus ./ prefix in globs
+    let read_rust_range = call(&mut d, "read", json!({"path": "crlf.txt", "lines": "1..=1"}));
+    assert!(read_rust_range.ok, "{}", read_rust_range.text);
+    assert!(read_rust_range.text.contains("1: custom_replaced"));
+
+    let read_l_prefix = call(&mut d, "read", json!({"path": "crlf.txt", "lines": "L1-L1"}));
+    assert!(read_l_prefix.ok, "{}", read_l_prefix.text);
+
+    let tree_dot_glob = call(&mut d, "tree", json!({"glob": "./*.txt"}));
+    assert!(tree_dot_glob.ok, "{}", tree_dot_glob.text);
+    assert!(tree_dot_glob.text.contains("crlf.txt"));
 }
