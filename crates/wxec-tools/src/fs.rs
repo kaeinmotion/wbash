@@ -415,6 +415,9 @@ impl Tool for ReadTool {
         }
         let abs = ctx.resolve(&a.path, true)?;
         if abs.is_dir() {
+            if let Some(tree_tool) = ctx.registry.get("tree") {
+                return tree_tool.call(&json!({"path": a.path, "depth": 2}), ctx);
+            }
             return Err(WErr::with_hint(
                 "is_directory",
                 format!("'{}' is a directory", a.path),

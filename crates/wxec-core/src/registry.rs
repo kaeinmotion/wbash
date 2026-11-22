@@ -68,7 +68,19 @@ impl Registry {
     }
 
     pub fn get(&self, name: &str) -> Option<Arc<dyn Tool>> {
-        self.tools.get(name).cloned()
+        if let Some(t) = self.tools.get(name) {
+            return Some(t.clone());
+        }
+        let canonical = match name {
+            "cat" | "read_file" | "read_file_content" | "view" | "open" => "read",
+            "grep" | "find_in_files" | "search_files" | "rg" => "search",
+            "ls" | "list_dir" | "list_files" | "directory_list" => "tree",
+            "write_file" | "write" | "create_file" => "edit",
+            "test" | "tests" | "clippy" | "build" => "check",
+            "exec" | "execute" | "bash" | "shell" => "run",
+            other => other,
+        };
+        self.tools.get(canonical).cloned()
     }
 
     pub fn names(&self) -> Vec<&'static str> {

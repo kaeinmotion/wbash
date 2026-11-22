@@ -27,6 +27,7 @@ struct ReplaceArgs {
     )]
     find: String,
     #[serde(
+        default,
         alias = "replacement",
         alias = "new_string",
         alias = "new_str",

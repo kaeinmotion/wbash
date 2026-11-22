@@ -578,4 +578,25 @@ fn test_ergonomic_tool_features() {
     let tree_dot_glob = call(&mut d, "tree", json!({"glob": "./*.txt"}));
     assert!(tree_dot_glob.ok, "{}", tree_dot_glob.text);
     assert!(tree_dot_glob.text.contains("crlf.txt"));
+
+    // 24. tool aliases (grep, cat, ls) and read directory auto-delegation
+    let cat_call = call(&mut d, "cat", json!({"path": "crlf.txt"}));
+    assert!(cat_call.ok, "{}", cat_call.text);
+
+    let grep_call = call(&mut d, "grep", json!({"pattern": "custom_replaced"}));
+    assert!(grep_call.ok, "{}", grep_call.text);
+
+    let ls_call = call(&mut d, "ls", json!({"path": "."}));
+    assert!(ls_call.ok, "{}", ls_call.text);
+
+    let read_dir = call(&mut d, "read", json!({"path": "."}));
+    assert!(read_dir.ok, "{}", read_dir.text);
+
+    // 25. replace with empty default replacement
+    let replace_del = call(
+        &mut d,
+        "replace",
+        json!({"find": "custom_replaced", "path": "crlf.txt"}),
+    );
+    assert!(replace_del.ok, "{}", replace_del.text);
 }

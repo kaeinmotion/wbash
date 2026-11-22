@@ -537,7 +537,14 @@ pub struct ShTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ShArgs {
-    #[serde(alias = "cmd", alias = "c", alias = "exec")]
+    #[serde(
+        alias = "cmd",
+        alias = "c",
+        alias = "exec",
+        alias = "script",
+        alias = "shell",
+        alias = "command_line"
+    )]
     command: String,
     #[serde(default = "dot", alias = "working_dir", alias = "dir", alias = "path")]
     cwd: String,
