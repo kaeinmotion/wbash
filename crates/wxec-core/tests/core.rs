@@ -50,7 +50,10 @@ fn core_primitives() {
 
     #[derive(serde::Deserialize)]
     struct TestRange {
-        #[serde(default, deserialize_with = "wxec_core::args::deserialize_line_range_opt")]
+        #[serde(
+            default,
+            deserialize_with = "wxec_core::args::deserialize_line_range_opt"
+        )]
         lines: Option<String>,
     }
     let from_arr: TestRange = serde_json::from_str(r#"{"lines": [1, 30]}"#).unwrap();

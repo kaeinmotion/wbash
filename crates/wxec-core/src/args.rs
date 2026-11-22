@@ -96,9 +96,7 @@ where
         type Value = Option<String>;
 
         fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str(
-                "a line range string (\"1-30\"), array ([1, 30]), or integer (10)",
-            )
+            formatter.write_str("a line range string (\"1-30\"), array ([1, 30]), or integer (10)")
         }
 
         fn visit_none<E>(self) -> std::result::Result<Self::Value, E> {

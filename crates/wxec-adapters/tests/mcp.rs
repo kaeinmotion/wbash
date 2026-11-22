@@ -125,7 +125,9 @@ fn mcp_handshake_list_and_call() {
             }
         }))
         .expect("call reply");
-    let text = read_array_lines["result"]["content"][0]["text"].as_str().unwrap();
+    let text = read_array_lines["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
     assert!(text.contains("1: alpha"), "{text}");
 
     let read_single_line = server
@@ -138,7 +140,9 @@ fn mcp_handshake_list_and_call() {
             }
         }))
         .expect("call reply");
-    let text = read_single_line["result"]["content"][0]["text"].as_str().unwrap();
+    let text = read_single_line["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
     assert!(text.contains("1: alpha"), "{text}");
 
     let sh_call = server

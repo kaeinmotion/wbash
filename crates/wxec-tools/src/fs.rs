@@ -68,7 +68,11 @@ impl Tool for TreeTool {
         })
     }
     fn call(&self, args: &Value, ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
-        let a: TreeArgs = parse_args(args.clone(), "tree", "pass path, depth, glob, sizes or dirs_only")?;
+        let a: TreeArgs = parse_args(
+            args.clone(),
+            "tree",
+            "pass path, depth, glob, sizes or dirs_only",
+        )?;
         let base = ctx.resolve(&a.path, true)?;
         if !base.is_dir() {
             return Err(WErr::with_hint(
@@ -344,7 +348,11 @@ impl Tool for ReadTool {
         if a.lines.is_none() && (a.start_line.is_some() || a.end_line.is_some()) {
             let s = a.start_line.unwrap_or(1);
             let e = a.end_line.map(|v| v.to_string()).unwrap_or_default();
-            a.lines = Some(if e.is_empty() { format!("{s}:") } else { format!("{s}:{e}") });
+            a.lines = Some(if e.is_empty() {
+                format!("{s}:")
+            } else {
+                format!("{s}:{e}")
+            });
         }
         if !a.paths.is_empty() {
             let mut r = ToolResult::new("read", format!("{} files", a.paths.len()));
@@ -804,7 +812,13 @@ struct EditArgs {
     path: String,
     #[serde(alias = "target", alias = "old_string", alias = "old_str")]
     find: Option<String>,
-    #[serde(alias = "replacement", alias = "new_string", alias = "new_str", alias = "with", alias = "insert")]
+    #[serde(
+        alias = "replacement",
+        alias = "new_string",
+        alias = "new_str",
+        alias = "with",
+        alias = "insert"
+    )]
     replace: Option<String>,
     #[serde(
         default,
@@ -972,7 +986,11 @@ impl Tool for EditTool {
         if lines.is_none() && (a.start_line.is_some() || a.end_line.is_some()) {
             let s = a.start_line.unwrap_or(1);
             let e = a.end_line.map(|v| v.to_string()).unwrap_or_default();
-            lines = Some(if e.is_empty() { format!("{s}:") } else { format!("{s}:{e}") });
+            lines = Some(if e.is_empty() {
+                format!("{s}:")
+            } else {
+                format!("{s}:{e}")
+            });
         }
 
         if replace.is_none() && (find.is_some() || lines.is_some()) && content.is_some() {
@@ -980,7 +998,10 @@ impl Tool for EditTool {
         }
 
         let is_create = a.create.unwrap_or(false)
-            || (find.is_none() && lines.is_none() && !a.delete.unwrap_or(false) && content.is_some());
+            || (find.is_none()
+                && lines.is_none()
+                && !a.delete.unwrap_or(false)
+                && content.is_some());
 
         let modes = [
             find.is_some(),

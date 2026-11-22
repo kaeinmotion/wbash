@@ -8,12 +8,8 @@ version = "0.2.5"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/kaeinmotion/wxec.git"
-homepage = "https://github.com/kaeinmotion/wxec.git"
 readme = "README.md"
 authors = ["wxec contributors"]
-description = "token-efficient cli and mcp tools for ai coding agents"
-keywords = ["ai", "cli", "mcp", "coding-agent", "developer-tools"]
-categories = ["command-line-utilities", "development-tools"]
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

@@ -12,7 +12,14 @@ use wxec_parsers::ParserRegistry;
 static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn setup() -> (PathBuf, Dispatcher) {
-    let root = std::env::temp_dir().join(format!("wxec-tools-{}", std::process::id()));
+    setup_named("default")
+}
+
+fn setup_named(name: &str) -> (PathBuf, Dispatcher) {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let id = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let root =
+        std::env::temp_dir().join(format!("wxec-tools-{}-{}-{}", name, std::process::id(), id));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(root.join("src")).unwrap();
     std::fs::create_dir_all(root.join("tests")).unwrap();
@@ -41,9 +48,9 @@ fn setup() -> (PathBuf, Dispatcher) {
         .collect();
     std::fs::write(root.join("big.txt"), big).unwrap();
 
-    let cache = root.with_extension("cache");
+    let cache = root.with_extension(format!("cache-{}", id));
     let _ = std::fs::remove_dir_all(&cache);
-    let config_home = root.with_extension("config");
+    let config_home = root.with_extension(format!("config-{}", id));
     let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var("XDG_CACHE_HOME", &cache);
     std::env::set_var("XDG_CONFIG_HOME", &config_home);
@@ -272,23 +279,39 @@ fn search_stats_flag() {
 
 #[test]
 fn test_ergonomic_tool_features() {
-    let (root, mut d) = setup();
+    let (root, mut d) = setup_named("ergonomic");
     d.set_session_tier("s", Tier::WriteWorkspace).unwrap();
 
     // 1. tree with dirs_only
     let tree_dirs = call(&mut d, "tree", json!({"dirs_only": true}));
     assert!(tree_dirs.ok, "{}", tree_dirs.text);
     assert!(tree_dirs.text.contains("src/"), "{}", tree_dirs.text);
-    assert!(!tree_dirs.text.contains("main.rs"), "dirs_only should not show leaf files: {}", tree_dirs.text);
+    assert!(
+        !tree_dirs.text.contains("main.rs"),
+        "dirs_only should not show leaf files: {}",
+        tree_dirs.text
+    );
 
     // 2. read with start_line and end_line
-    let read_range = call(&mut d, "read", json!({"path": "src/config.rs", "start_line": 1, "end_line": 2}));
+    let read_range = call(
+        &mut d,
+        "read",
+        json!({"path": "src/config.rs", "start_line": 1, "end_line": 2}),
+    );
     assert!(read_range.ok, "{}", read_range.text);
-    assert!(read_range.text.contains("1: //! Config."), "{}", read_range.text);
+    assert!(
+        read_range.text.contains("1: //! Config."),
+        "{}",
+        read_range.text
+    );
     assert!(!read_range.text.contains("3:"), "{}", read_range.text);
 
     // 3. edit with content creating a file without explicit create: true
-    let edit_auto_create = call(&mut d, "edit", json!({"path": "new_created.txt", "content": "hello auto create"}));
+    let edit_auto_create = call(
+        &mut d,
+        "edit",
+        json!({"path": "new_created.txt", "content": "hello auto create"}),
+    );
     assert!(edit_auto_create.ok, "{}", edit_auto_create.text);
     assert!(root.join("new_created.txt").exists());
 }
