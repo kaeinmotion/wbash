@@ -79,6 +79,84 @@ pub fn parse_args<T: DeserializeOwned>(args: Value, tool: &str, hint: &str) -> R
     })
 }
 
+/// Flexible line range deserializer for tool args.
+/// Accepts:
+/// - string: `"1-30"`, `"10:40"`, `"10"`
+/// - array: `[1, 30]`, `[10]`
+/// - integer: `10`
+pub fn deserialize_line_range_opt<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct LineRangeVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for LineRangeVisitor {
+        type Value = Option<String>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str(
+                "a line range string (\"1-30\"), array ([1, 30]), or integer (10)",
+            )
+        }
+
+        fn visit_none<E>(self) -> std::result::Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> std::result::Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_some<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            deserializer.deserialize_any(LineRangeVisitor)
+        }
+
+        fn visit_str<E>(self, s: &str) -> std::result::Result<Self::Value, E> {
+            Ok(Some(s.to_string()))
+        }
+
+        fn visit_string<E>(self, s: String) -> std::result::Result<Self::Value, E> {
+            Ok(Some(s))
+        }
+
+        fn visit_i64<E>(self, n: i64) -> std::result::Result<Self::Value, E> {
+            Ok(Some(format!("{n}-{n}")))
+        }
+
+        fn visit_u64<E>(self, n: u64) -> std::result::Result<Self::Value, E> {
+            Ok(Some(format!("{n}-{n}")))
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+        where
+            A: serde::de::SeqAccess<'de>,
+        {
+            let mut items = Vec::new();
+            while let Some(elem) = seq.next_element::<serde_json::Value>()? {
+                match elem {
+                    serde_json::Value::Number(n) => items.push(n.to_string()),
+                    serde_json::Value::String(s) => items.push(s),
+                    _ => {}
+                }
+            }
+            if items.is_empty() {
+                Ok(None)
+            } else if items.len() == 1 {
+                Ok(Some(format!("{}-{}", items[0], items[0])))
+            } else {
+                Ok(Some(format!("{}-{}", items[0], items[1])))
+            }
+        }
+    }
+
+    deserializer.deserialize_option(LineRangeVisitor)
+}
+
 /// Parse a `start:end` 1-based inclusive range. Either side may be omitted.
 pub fn parse_line_range(spec: &str, len: usize) -> Result<(usize, usize)> {
     parse_line_range_inner(spec, len, false)
@@ -90,17 +168,21 @@ pub fn parse_line_range_clamped(spec: &str, len: usize) -> Result<(usize, usize)
 }
 
 fn parse_line_range_inner(spec: &str, len: usize, clamp: bool) -> Result<(usize, usize)> {
-    let (a, b) = spec
+    let (a, b) = if let Some(pair) = spec
         .split_once(':')
         .or_else(|| spec.split_once(".."))
         .or_else(|| spec.split_once('-'))
         .or_else(|| spec.split_once(','))
-        .ok_or_else(|| {
-            WErr::invalid_args(
-                format!("bad lines range '{spec}'"),
-                "use lines=10:40 or lines=10-40 (1-based inclusive)",
-            )
-        })?;
+    {
+        pair
+    } else if spec.trim().parse::<usize>().is_ok() {
+        (spec.trim(), spec.trim())
+    } else {
+        return Err(WErr::invalid_args(
+            format!("bad lines range '{spec}'"),
+            "use lines=10:40 or lines=10-40 (1-based inclusive)",
+        ));
+    };
     if len == 0 {
         return Err(WErr::new("invalid_range", "file has no lines"));
     }

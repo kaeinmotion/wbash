@@ -39,6 +39,7 @@ struct GitArgs {
     #[serde(rename = "ref")]
     reference: Option<String>,
     path: Option<String>,
+    #[serde(default, deserialize_with = "wxec_core::args::deserialize_line_range_opt")]
     lines: Option<String>,
     message: Option<String>,
     #[serde(default)]

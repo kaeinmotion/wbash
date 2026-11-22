@@ -282,7 +282,12 @@ struct ReadArgs {
     path: String,
     #[serde(default)]
     paths: Vec<String>,
-    #[serde(alias = "range", alias = "line_range")]
+    #[serde(
+        default,
+        deserialize_with = "wxec_core::args::deserialize_line_range_opt",
+        alias = "range",
+        alias = "line_range"
+    )]
     lines: Option<String>,
     symbol: Option<String>,
     #[serde(default)]
@@ -308,7 +313,7 @@ impl Tool for ReadTool {
             "properties": {
                 "path": {"type": "string"},
                 "paths": {"type": "array", "items": {"type": "string"}},
-                "lines": {"type": "string"},
+                "lines": {"type": ["string", "array"]},
                 "symbol": {"type": "string"},
                 "outline": {"type": "boolean", "default": false},
                 "expect_hash": {"type": "string"},
@@ -783,6 +788,7 @@ struct EditArgs {
     find: Option<String>,
     #[serde(alias = "replacement", alias = "new_string", alias = "new_str")]
     replace: Option<String>,
+    #[serde(default, deserialize_with = "wxec_core::args::deserialize_line_range_opt")]
     lines: Option<String>,
     create: Option<bool>,
     content: Option<String>,
@@ -863,7 +869,7 @@ impl Tool for EditTool {
                 "path": {"type": "string"},
                 "find": {"type": "string"},
                 "replace": {"type": "string"},
-                "lines": {"type": "string"},
+                "lines": {"type": ["string", "array"]},
                 "create": {"type": "boolean"},
                 "content": {"type": "string"},
                 "overwrite": {"type": "boolean", "default": false},

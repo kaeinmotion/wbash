@@ -114,9 +114,36 @@ fn mcp_handshake_list_and_call() {
     assert!(text.contains("2 ok, 0 error"), "{text}");
 
     // Test sh execution via MCP (now enabled by default for seamless developer workflow)
-    let sh_call = server
+    // Test array line range e.g. [1, 2] and single line integer e.g. 1
+    let read_array_lines = server
         .handle(&json!({
             "jsonrpc": "2.0", "id": 9, "method": "tools/call",
+            "params": {
+                "name": "read",
+                "arguments": {"path": "a.txt", "lines": [1, 2]},
+                "_meta": {"session_id": "t"}
+            }
+        }))
+        .expect("call reply");
+    let text = read_array_lines["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("1: alpha"), "{text}");
+
+    let read_single_line = server
+        .handle(&json!({
+            "jsonrpc": "2.0", "id": 10, "method": "tools/call",
+            "params": {
+                "name": "read",
+                "arguments": {"path": "a.txt", "lines": 1},
+                "_meta": {"session_id": "t"}
+            }
+        }))
+        .expect("call reply");
+    let text = read_single_line["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("1: alpha"), "{text}");
+
+    let sh_call = server
+        .handle(&json!({
+            "jsonrpc": "2.0", "id": 11, "method": "tools/call",
             "params": {
                 "name": "sh",
                 "arguments": {"command": "echo mcp_sh_works"}

@@ -44,6 +44,21 @@ fn core_primitives() {
     );
 
     assert!(parse_line_range("1:99", 3).is_err());
+    assert_eq!(parse_line_range("10", 20).unwrap(), (10, 10));
+    assert_eq!(parse_line_range("1-5", 20).unwrap(), (1, 5));
+    assert_eq!(parse_line_range("1..5", 20).unwrap(), (1, 5));
+
+    #[derive(serde::Deserialize)]
+    struct TestRange {
+        #[serde(default, deserialize_with = "wxec_core::args::deserialize_line_range_opt")]
+        lines: Option<String>,
+    }
+    let from_arr: TestRange = serde_json::from_str(r#"{"lines": [1, 30]}"#).unwrap();
+    assert_eq!(from_arr.lines.as_deref(), Some("1-30"));
+    let from_single_num: TestRange = serde_json::from_str(r#"{"lines": 10}"#).unwrap();
+    assert_eq!(from_single_num.lines.as_deref(), Some("10-10"));
+    let from_str: TestRange = serde_json::from_str(r#"{"lines": "5-15"}"#).unwrap();
+    assert_eq!(from_str.lines.as_deref(), Some("5-15"));
 
     // Budget fitting: must-keep survives, elision is resolvable.
     let mut result = ToolResult::new("read", "header");
