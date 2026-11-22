@@ -484,4 +484,35 @@ mod tests {
         let labels: Vec<_> = cmds.iter().map(|(l, _)| l.as_str()).collect();
         assert_eq!(labels, vec!["go vet", "go test"]);
     }
+
+    #[test]
+    fn js_package_manager_detection() {
+        use super::detect_js_runner;
+
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"scripts": {"test": "echo test", "lint": "echo lint", "build": "echo build"}}"#,
+        )
+        .unwrap();
+
+        std::fs::write(dir.path().join("pnpm-lock.yaml"), "lockfile").unwrap();
+        assert_eq!(detect_js_runner(dir.path()), "pnpm");
+        let cmds = detect_commands(dir.path(), "all").unwrap();
+        let labels: Vec<_> = cmds.iter().map(|(l, _)| l.as_str()).collect();
+        assert!(labels.contains(&"pnpm lint"));
+        assert!(labels.contains(&"pnpm test"));
+        assert!(labels.contains(&"pnpm build"));
+
+        std::fs::remove_file(dir.path().join("pnpm-lock.yaml")).unwrap();
+        std::fs::write(dir.path().join("bun.lockb"), "lockfile").unwrap();
+        assert_eq!(detect_js_runner(dir.path()), "bun");
+
+        std::fs::remove_file(dir.path().join("bun.lockb")).unwrap();
+        std::fs::write(dir.path().join("yarn.lock"), "lockfile").unwrap();
+        assert_eq!(detect_js_runner(dir.path()), "yarn");
+
+        std::fs::remove_file(dir.path().join("yarn.lock")).unwrap();
+        assert_eq!(detect_js_runner(dir.path()), "npm");
+    }
 }
