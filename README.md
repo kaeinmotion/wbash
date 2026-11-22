@@ -1,13 +1,13 @@
-# wxec
+wxec
 
 [![ci](https://github.com/kaeinmotion/wxec/actions/workflows/ci.yml/badge.svg)](https://github.com/kaeinmotion/wxec/actions)
 [![release](https://img.shields.io/github/v/release/kaeinmotion/wxec?color=blue)](https://github.com/kaeinmotion/wxec/releases/latest)
 [![license: mit](https://img.shields.io/badge/license-mit-yellow.svg)](https://opensource.org/licenses/MIT)
 [![model context protocol](https://img.shields.io/badge/mcp-compatible-green.svg)](https://modelcontextprotocol.io)
 
-wxec is a high-throughput, token-efficient model context protocol (mcp) execution engine for autonomous ai coding agents. it eliminates shell subprocess noise and context-window bloat by routing agent operations through structured, simd-accelerated workspace primitives, session hash ledgers, and atomic lossless memory handles (`~id`).
+wxec is a high-throughput, token-efficient model context protocol execution engine for ai coding agents. it eliminates shell subprocess noise and context-window bloat by routing agent operations through structured, simd-accelerated workspace primitives, session hash ledgers, and atomic lossless memory handles.
 
-### **documentation**
+documentation
 
 | document | description |
 | :--- | :--- |
@@ -16,7 +16,7 @@ wxec is a high-throughput, token-efficient model context protocol (mcp) executio
 | [docs/security.md](docs/security.md) | threat model, path jailing, credential redaction, and permission tiers |
 | [docs/wire-format-v0.2.md](docs/wire-format-v0.2.md) | wire protocol serialization, handle storage, and token estimators |
 
-### **quick start**
+quick start
 
 build from source:
 ```sh
@@ -35,6 +35,6 @@ run via docker:
 docker run -i --rm -v "${PWD}:/workspace" ghcr.io/kaeinmotion/wxec
 ```
 
-### **license**
+license
 
 mit.
