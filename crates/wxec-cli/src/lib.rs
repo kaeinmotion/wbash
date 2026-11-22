@@ -43,6 +43,10 @@ const BOOLEANS: &[&str] = &[
     "outline",
     "sizes",
     "staged",
+    "stage",
+    "auto-stage",
+    "stop-on-error",
+    "fail-fast",
     "all",
     "allow-empty",
     "set-upstream",
@@ -612,6 +616,10 @@ fn is_known_arg_key(key: &str) -> bool {
             | "set_upstream"
             | "shortstat"
             | "sizes"
+            | "stage"
+            | "auto_stage"
+            | "stop_on_error"
+            | "fail_fast"
             | "staged"
             | "start"
             | "stat"
@@ -653,6 +661,10 @@ fn parse_scalar_for(key: &str, s: &str) -> Value {
     if matches!(
         key,
         "all"
+            | "stage"
+            | "auto_stage"
+            | "stop_on_error"
+            | "fail_fast"
             | "staged"
             | "force"
             | "outline"

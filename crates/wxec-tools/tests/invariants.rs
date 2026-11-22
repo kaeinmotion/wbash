@@ -314,4 +314,60 @@ fn test_ergonomic_tool_features() {
     );
     assert!(edit_auto_create.ok, "{}", edit_auto_create.text);
     assert!(root.join("new_created.txt").exists());
+
+    // 4. batch with stop_on_error stops after first failing call and reports skipped count
+    let batch_stop = call(
+        &mut d,
+        "batch",
+        json!({
+            "calls": [
+                {"tool": "read", "args": {"path": "nope1.txt"}},
+                {"tool": "read", "args": {"path": "src/main.rs"}},
+                {"tool": "read", "args": {"path": "nope2.txt"}}
+            ],
+            "stop_on_error": true
+        }),
+    );
+    assert!(!batch_stop.ok, "{}", batch_stop.text);
+    assert!(
+        batch_stop
+            .text
+            .starts_with("0 ok, 1 error, 2 skipped, 3 total"),
+        "{}",
+        batch_stop.text
+    );
+    assert!(
+        batch_stop.text.contains("#1 read error"),
+        "{}",
+        batch_stop.text
+    );
+    assert!(!batch_stop.text.contains("#2 read"), "{}", batch_stop.text);
+
+    // 5. git commit with stage: true auto-stages untracked files
+    d.set_session_tier("s", Tier::GitWrite).unwrap();
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .args(args)
+            .current_dir(&root)
+            .env("HOME", &root)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "t@t"]);
+    git(&["config", "user.name", "t"]);
+    let commit_auto_stage = call(
+        &mut d,
+        "git",
+        json!({"op": "commit", "message": "auto stage commit", "stage": true}),
+    );
+    assert!(commit_auto_stage.ok, "{}", commit_auto_stage.text);
+    assert!(
+        commit_auto_stage.text.starts_with("committed "),
+        "{}",
+        commit_auto_stage.text
+    );
+    let st = call(&mut d, "git", json!({"op": "status"}));
+    assert!(st.text.contains("0 changed"), "{}", st.text);
 }

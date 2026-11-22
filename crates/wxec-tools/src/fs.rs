@@ -319,7 +319,7 @@ impl Tool for ReadTool {
         "read"
     }
     fn description(&self) -> &'static str {
-        "Read file or range; unchanged when hash-verified."
+        "Read file or line range."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly
@@ -893,7 +893,7 @@ impl Tool for EditTool {
         "edit"
     }
     fn description(&self) -> &'static str {
-        "Exact edit, line splice, create or delete; atomic."
+        "Exact edit, line range or file create."
     }
     fn min_tier(&self) -> Tier {
         Tier::WriteWorkspace
@@ -1358,7 +1358,7 @@ impl Tool for ExpandTool {
         "expand"
     }
     fn description(&self) -> &'static str {
-        "Expand handle with optional grep/lines filters."
+        "Expand compacted handle."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly

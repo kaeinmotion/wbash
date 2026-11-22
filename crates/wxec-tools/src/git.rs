@@ -45,6 +45,8 @@ struct GitArgs {
     )]
     lines: Option<String>,
     message: Option<String>,
+    #[serde(default, alias = "auto_stage", alias = "stage_all", alias = "add_all")]
+    stage: bool,
     #[serde(default)]
     all: bool,
     #[serde(default)]
@@ -84,6 +86,7 @@ impl Tool for GitTool {
                 "path": {"type": "string"},
                 "lines": {"type": "string"},
                 "message": {"type": "string"},
+                "stage": {"type": "boolean"},
                 "all": {"type": "boolean"},
                 "allow_empty": {"type": "boolean"},
                 "remote": {"type": "string"},
@@ -683,6 +686,19 @@ fn commit(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
         args.push("--allow-empty".to_string());
     }
     let paths = pathspecs(a)?;
+    if a.stage {
+        let add_out = if !paths.is_empty() {
+            let mut add_args = vec!["add".to_string(), "--".to_string()];
+            add_args.extend(paths.clone());
+            let refs: Vec<&str> = add_args.iter().map(String::as_str).collect();
+            git(ctx, &refs).map_err(map_git_err)?
+        } else {
+            git(ctx, &["add", "-A"]).map_err(map_git_err)?
+        };
+        if !add_out.exit.is_success() {
+            return Err(git_failure("add", &add_out));
+        }
+    }
     if !paths.is_empty() {
         if a.staged {
             // commit staged subset: ensure index-only commit context

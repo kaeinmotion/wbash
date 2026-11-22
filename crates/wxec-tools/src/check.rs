@@ -47,7 +47,7 @@ impl Tool for CheckTool {
         "check"
     }
     fn description(&self) -> &'static str {
-        "Run build/lint/type/test checks; normalized output."
+        "Run build, lint or test checks."
     }
     fn min_tier(&self) -> Tier {
         Tier::Execute

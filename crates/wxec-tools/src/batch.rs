@@ -15,6 +15,8 @@ pub struct BatchTool;
 struct BatchArgs {
     #[serde(alias = "tools", alias = "operations", alias = "commands")]
     calls: Vec<BatchCall>,
+    #[serde(default, alias = "fail_fast", alias = "bail_on_error")]
+    stop_on_error: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,7 +37,7 @@ impl Tool for BatchTool {
         "batch"
     }
     fn description(&self) -> &'static str {
-        "Run up to 16 tool calls; child failures do not cancel."
+        "Run up to 16 tool calls in one turn."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly
@@ -56,7 +58,8 @@ impl Tool for BatchTool {
                         "required": ["tool"],
                         "additionalProperties": false
                     }
-                }
+                },
+                "stop_on_error": {"type": "boolean"}
             },
             "required": ["calls"],
             "additionalProperties": false
@@ -150,11 +153,22 @@ impl Tool for BatchTool {
                         used_items_tokens.saturating_add(estimator::estimate_text(&err_msg));
                     result.push(Item::new(ItemClass::MustKeep, 1000.0, vec![err_hdr]));
                     result.must(err_msg);
+                    if a.stop_on_error {
+                        break;
+                    }
                 }
             }
         }
 
-        result.header = format!("{ok_count} ok, {err_count} error, {n} total");
+        let executed = ok_count + err_count;
+        let skipped = n.saturating_sub(executed);
+        if skipped > 0 {
+            result.header =
+                format!("{ok_count} ok, {err_count} error, {skipped} skipped, {n} total");
+            result.meta.counts.insert("skipped".into(), skipped as i64);
+        } else {
+            result.header = format!("{ok_count} ok, {err_count} error, {n} total");
+        }
         result.meta.ok = err_count == 0;
         result.meta.counts.insert("ok".into(), ok_count as i64);
         result.meta.counts.insert("error".into(), err_count as i64);

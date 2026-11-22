@@ -431,7 +431,7 @@ impl Tool for RunTool {
         "run"
     }
     fn description(&self) -> &'static str {
-        "Execute argv directly, normalize output, save log in handle."
+        "Execute argv directly; normalized output."
     }
     fn min_tier(&self) -> Tier {
         Tier::Execute
