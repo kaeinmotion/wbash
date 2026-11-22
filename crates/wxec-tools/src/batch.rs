@@ -19,8 +19,9 @@ struct BatchArgs {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BatchCall {
+    #[serde(alias = "name")]
     tool: String,
-    #[serde(default = "empty_obj")]
+    #[serde(default = "empty_obj", alias = "arguments")]
     args: Value,
 }
 

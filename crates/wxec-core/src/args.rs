@@ -90,12 +90,17 @@ pub fn parse_line_range_clamped(spec: &str, len: usize) -> Result<(usize, usize)
 }
 
 fn parse_line_range_inner(spec: &str, len: usize, clamp: bool) -> Result<(usize, usize)> {
-    let (a, b) = spec.split_once(':').ok_or_else(|| {
-        WErr::invalid_args(
-            format!("bad lines range '{spec}'"),
-            "use lines=10:40 (1-based inclusive)",
-        )
-    })?;
+    let (a, b) = spec
+        .split_once(':')
+        .or_else(|| spec.split_once(".."))
+        .or_else(|| spec.split_once('-'))
+        .or_else(|| spec.split_once(','))
+        .ok_or_else(|| {
+            WErr::invalid_args(
+                format!("bad lines range '{spec}'"),
+                "use lines=10:40 or lines=10-40 (1-based inclusive)",
+            )
+        })?;
     if len == 0 {
         return Err(WErr::new("invalid_range", "file has no lines"));
     }

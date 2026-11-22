@@ -58,4 +58,58 @@ fn mcp_handshake_list_and_call() {
         .handle(&json!({"jsonrpc": "2.0", "id": 4, "method": "nope"}))
         .expect("error reply");
     assert_eq!(err["error"]["code"], -32601);
+
+    // Test stringified arguments decoding and line range with hyphen
+    let read_str_args = server
+        .handle(&json!({
+            "jsonrpc": "2.0", "id": 5, "method": "tools/call",
+            "params": {"name": "read", "arguments": "{\"path\": \"a.txt\", \"lines\": \"1-2\"}", "_meta": {"session_id": "t"}}
+        }))
+        .expect("call reply");
+    let text = read_str_args["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert!(text.contains("1: alpha"), "{text}");
+
+    // Test empty capabilities queries (resources/list, prompts/list)
+    let resources = server
+        .handle(&json!({"jsonrpc": "2.0", "id": 6, "method": "resources/list"}))
+        .expect("resources reply");
+    assert!(resources["result"]["resources"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+
+    let prompts = server
+        .handle(&json!({"jsonrpc": "2.0", "id": 7, "method": "prompts/list"}))
+        .expect("prompts reply");
+    assert!(prompts["result"]["prompts"].as_array().unwrap().is_empty());
+
+    // Test notification handling (no reply per JSON-RPC 2.0)
+    let notif = server.handle(&json!({"jsonrpc": "2.0", "method": "notifications/initialized"}));
+    assert!(notif.is_none());
+
+    // Test edit with target/replacement aliases and batch with name/arguments
+    let batch_call = server
+        .handle(&json!({
+            "jsonrpc": "2.0", "id": 8, "method": "tools/call",
+            "params": {
+                "name": "batch",
+                "arguments": {
+                    "calls": [
+                        {
+                            "name": "edit",
+                            "arguments": {"path": "a.txt", "target": "beta", "replacement": "gamma"}
+                        },
+                        {
+                            "name": "read",
+                            "arguments": {"path": "a.txt", "lines": "1..2"}
+                        }
+                    ]
+                }
+            }
+        }))
+        .expect("batch reply");
+    let text = batch_call["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("2 ok, 0 error"), "{text}");
 }

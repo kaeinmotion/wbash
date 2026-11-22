@@ -400,9 +400,23 @@ pub struct Ledger {
     pub searches: BTreeMap<String, SearchSeen>,
     #[serde(default)]
     pub runs: BTreeMap<String, RunSeen>,
+    #[serde(skip)]
+    pub dirty: bool,
 }
 
 impl Ledger {
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    pub fn clear_dirty(&mut self) {
+        self.dirty = false;
+    }
+
+    pub fn mark_dirty(&mut self) {
+        self.dirty = true;
+    }
+
     pub fn read_entry(
         &self,
         path: &str,
@@ -419,11 +433,16 @@ impl Ledger {
 
     pub fn record_read(&mut self, path: &str, scope: Scope, seen: ReadSeen) {
         self.reads.insert(format!("{path}#{}", scope.key()), seen);
+        self.dirty = true;
     }
 
     pub fn invalidate_path(&mut self, path: &str) {
         let prefix = format!("{path}#");
+        let before = self.reads.len();
         self.reads.retain(|k, _| !k.starts_with(&prefix));
+        if self.reads.len() != before {
+            self.dirty = true;
+        }
     }
 
     pub fn touched(&self, path: &str) -> bool {
@@ -441,17 +460,25 @@ impl Ledger {
 
     pub fn record_search(&mut self, key: String, seen: SearchSeen) {
         self.searches.insert(key, seen);
+        self.dirty = true;
     }
 
     pub fn invalidate_searches(&mut self) {
-        self.searches.clear();
+        if !self.searches.is_empty() {
+            self.searches.clear();
+            self.dirty = true;
+        }
     }
 
     pub fn expire(&mut self, ttl_secs: u64, now_ms: i64) {
         let ttl = (ttl_secs as i64) * 1000;
+        let before_len = self.reads.len() + self.searches.len() + self.runs.len();
         self.reads.retain(|_, v| now_ms - v.shown_ms <= ttl);
         self.searches.retain(|_, v| now_ms - v.shown_ms <= ttl);
         self.runs.retain(|_, v| now_ms - v.shown_ms <= ttl);
+        if self.reads.len() + self.searches.len() + self.runs.len() != before_len {
+            self.dirty = true;
+        }
     }
 }
 

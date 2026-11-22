@@ -37,26 +37,30 @@ impl McpServer {
     }
 
     pub fn handle(&mut self, msg: &Value) -> Option<Value> {
-        let id = msg.get("id").cloned();
+        // JSON-RPC 2.0: Requests without an ID are notifications; servers MUST NOT reply.
+        let id = msg.get("id")?.clone();
         let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
         let params = msg.get("params").cloned().unwrap_or_else(|| json!({}));
-        if id.is_none() && method.starts_with("notifications/") {
-            return None;
-        }
         let response = match method {
             "initialize" => Ok(json!({
                 "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {"tools": {"listChanged": false}},
+                "capabilities": {
+                    "tools": {"listChanged": false},
+                    "resources": {"subscribe": false, "listChanged": false},
+                    "prompts": {"listChanged": false}
+                },
                 "serverInfo": {"name": SERVER_NAME, "version": env!("CARGO_PKG_VERSION")},
                 "instructions": "Use wxec tools for workspace operations. Results are compact to reduce token use; use expand with a handle to retrieve full output when needed."
             })),
             "ping" => Ok(json!({})),
             "tools/list" => Ok(json!({"tools": self.dispatcher.registry().mcp_tools()})),
             "tools/call" => self.call_tool(&params),
+            "resources/list" => Ok(json!({"resources": []})),
+            "resources/templates/list" => Ok(json!({"resourceTemplates": []})),
+            "prompts/list" => Ok(json!({"prompts": []})),
             "shutdown" => Ok(Value::Null),
             other => Err((-32601, format!("method not found: {other}"))),
         };
-        let id = id.unwrap_or(Value::Null);
         Some(match response {
             Ok(result) => json!({"jsonrpc": "2.0", "id": id, "result": result}),
             Err((code, message)) => {
@@ -71,10 +75,17 @@ impl McpServer {
             .and_then(Value::as_str)
             .ok_or((-32602, "missing tool name".to_string()))?
             .to_string();
-        let args = params
+        let mut args = params
             .get("arguments")
             .cloned()
             .unwrap_or_else(|| json!({}));
+        if let Some(s) = args.as_str() {
+            if let Ok(parsed) = serde_json::from_str::<Value>(s) {
+                if parsed.is_object() {
+                    args = parsed;
+                }
+            }
+        }
         let session = params
             .get("_meta")
             .and_then(|m| m.get("session_id"))
@@ -107,7 +118,10 @@ pub fn serve_stdio(
             Err(e) => return Err(WErr::internal(format!("stdin: {e}"))),
         };
         let line = line.trim();
-        if line.is_empty() {
+        if line.is_empty()
+            || line.starts_with("Content-Length:")
+            || line.starts_with("Content-Type:")
+        {
             continue;
         }
         let msg: Value = match serde_json::from_str(line) {

@@ -17,6 +17,7 @@ pub struct GitTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GitArgs {
+    #[serde(alias = "operation", alias = "subcommand", alias = "command")]
     op: String,
     pathspec: Option<Value>,
     #[serde(default)]

@@ -282,6 +282,7 @@ struct ReadArgs {
     path: String,
     #[serde(default)]
     paths: Vec<String>,
+    #[serde(alias = "range", alias = "line_range")]
     lines: Option<String>,
     symbol: Option<String>,
     #[serde(default)]
@@ -663,7 +664,12 @@ impl Tool for ReadTool {
 }
 
 fn spec_mismatch(spec: &str, start: usize, end: usize, len: usize) -> bool {
-    let (a, b) = spec.split_once(':').unwrap_or(("", ""));
+    let (a, b) = spec
+        .split_once(':')
+        .or_else(|| spec.split_once(".."))
+        .or_else(|| spec.split_once('-'))
+        .or_else(|| spec.split_once(','))
+        .unwrap_or(("", ""));
     let req_start = a.trim().parse::<usize>().unwrap_or(1);
     let req_end = b.trim().parse::<usize>().unwrap_or(len);
     req_start != start || req_end != end
@@ -773,7 +779,9 @@ pub struct EditTool;
 #[serde(deny_unknown_fields)]
 struct EditArgs {
     path: String,
+    #[serde(alias = "target", alias = "old_string", alias = "old_str")]
     find: Option<String>,
+    #[serde(alias = "replacement", alias = "new_string", alias = "new_str")]
     replace: Option<String>,
     lines: Option<String>,
     create: Option<bool>,

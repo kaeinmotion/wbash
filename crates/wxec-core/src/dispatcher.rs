@@ -134,10 +134,6 @@ impl Dispatcher {
         self.ensure_session(session_id)?;
         let budget = common.budget.unwrap_or_else(|| default_budget(tool));
         let key = session_id.to_string();
-        let ledger_before = self
-            .sessions
-            .get(&key)
-            .and_then(|s| serde_json::to_vec(&s.ledger).ok());
 
         let result = {
             let session = self.sessions.get_mut(&key).expect("session");
@@ -224,19 +220,24 @@ impl Dispatcher {
             }
         }
 
-        if let Some(session) = self.sessions.get_mut(&key) {
+        let to_save = if let Some(session) = self.sessions.get_mut(&key) {
             if result.meta.ok && mutating {
                 session.ledger.invalidate_searches();
             }
             session.last_seen_ms = now_ms();
-            session
-                .ledger
-                .expire(self.config.session.ledger_ttl_secs, now_ms());
-            if let Ok(after) = serde_json::to_vec(&session.ledger) {
-                if ledger_before.as_deref() != Some(after.as_slice()) {
-                    self.save_ledger_bytes(session_id, &after);
-                }
+            let ttl = self.config.session.ledger_ttl_secs;
+            session.ledger.expire(ttl, now_ms());
+            if session.ledger.is_dirty() {
+                session.ledger.clear_dirty();
+                serde_json::to_vec(&session.ledger).ok()
+            } else {
+                None
             }
+        } else {
+            None
+        };
+        if let Some(bytes) = to_save {
+            self.save_ledger_bytes(session_id, &bytes);
         }
         self.prune_sessions();
         Ok(rendered)

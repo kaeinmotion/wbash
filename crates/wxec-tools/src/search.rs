@@ -15,6 +15,7 @@ pub struct SearchTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SearchArgs {
+    #[serde(alias = "query")]
     pattern: String,
     #[serde(default = "text")]
     mode: String,
