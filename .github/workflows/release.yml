@@ -21,20 +21,22 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: macos-latest
             target: aarch64-apple-darwin
-          - os: macos-13
+          - os: macos-latest
             target: x86_64-apple-darwin
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release -p wxec-cli
+      - run: cargo build --release --target ${{ matrix.target }} -p wxec-cli
       - name: package
         shell: bash
         run: |
           ver="${GITHUB_REF_NAME:-v0.1.0}"
           name="wxec-${ver}-${{ matrix.target }}"
           mkdir -p dist/$name
-          cp target/release/w target/release/wxec dist/$name/
+          cp target/${{ matrix.target }}/release/w target/${{ matrix.target }}/release/wxec dist/$name/
           cp README.md LICENSE dist/$name/ || true
           tar -C dist -czf dist/$name.tar.gz $name
           (cd dist && shasum -a 256 $name.tar.gz > $name.tar.gz.sha256 || sha256sum $name.tar.gz > $name.tar.gz.sha256)
