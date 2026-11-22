@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/registry/main/docs/reference/server-json/draft/schema.json",
   "name": "kaeinmotion/wxec",
   "title": "wxec",
-  "description": "ultra token-efficient model context protocol (mcp) server for ai coding agents",
+  "description": "token-efficient mcp server for ai coding agents",
   "repository": {
     "url": "https://github.com/kaeinmotion/wxec",
     "source": "github"
