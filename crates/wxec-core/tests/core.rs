@@ -32,6 +32,16 @@ fn core_primitives() {
     assert!(n >= 1, "expected redaction: {red}");
     assert!(!red.contains("AKIAABCDEFGHIJKLMNOP"));
 
+    let (ai_red, ai_n) = redactor.redact("keys: sk-proj-1234567890123456789012 and sk-ant-api03-12345678901234567890 and AIzaSyD1234567890123456789012345678901");
+    assert_eq!(ai_n, 3, "expected 3 ai keys redacted: {ai_red}");
+    assert!(!ai_red.contains("sk-proj-"));
+    assert!(!ai_red.contains("sk-ant-"));
+    assert!(!ai_red.contains("AIzaSyD"));
+
+    assert!(Redactor::is_secret_key("AUTH_HEADER"));
+    assert!(Redactor::is_secret_key("BEARER_TOKEN"));
+    assert!(Redactor::is_secret_key("OPENAI_API_KEY"));
+
     let root = temp_dir("root");
     let croot = root.canonicalize().unwrap();
     std::fs::write(croot.join("a.txt"), "hello").unwrap();
