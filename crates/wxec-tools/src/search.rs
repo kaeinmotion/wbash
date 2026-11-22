@@ -19,9 +19,9 @@ struct SearchArgs {
     pattern: String,
     #[serde(default = "text")]
     mode: String,
-    #[serde(default = "dot")]
+    #[serde(default = "dot", alias = "dir", alias = "directory", alias = "folder")]
     path: String,
-    #[serde(default)]
+    #[serde(default, alias = "files")]
     paths: Vec<String>,
     glob: Option<String>,
     #[serde(default)]

@@ -1153,8 +1153,27 @@ impl Tool for EditTool {
                     Some((pos, find.len()))
                 }
                 None => {
-                    // Try whitespace-relaxed fallback
-                    if let Some((start, end)) = fuzzy_match_anchor(&old, find) {
+                    let normalized = if old.contains("\r\n") && !find.contains("\r\n") {
+                        find.replace('\n', "\r\n")
+                    } else if !old.contains("\r\n") && find.contains("\r\n") {
+                        find.replace("\r\n", "\n")
+                    } else {
+                        find.clone()
+                    };
+                    if normalized != *find {
+                        let mut nit = old.match_indices(normalized.as_str()).map(|(i, _)| i);
+                        if let Some(pos) = nit.next() {
+                            if nit.next().is_none() {
+                                Some((pos, normalized.len()))
+                            } else {
+                                None
+                            }
+                        } else if let Some((start, end)) = fuzzy_match_anchor(&old, find) {
+                            Some((start, end - start))
+                        } else {
+                            None
+                        }
+                    } else if let Some((start, end)) = fuzzy_match_anchor(&old, find) {
                         Some((start, end - start))
                     } else {
                         None
@@ -1178,9 +1197,16 @@ impl Tool for EditTool {
                     ));
                 }
             };
-            let mut new = String::with_capacity(old.len() + replace.len());
+            let replace_text = if old.contains("\r\n") && !replace.contains("\r\n") {
+                replace.replace('\n', "\r\n")
+            } else if !old.contains("\r\n") && replace.contains("\r\n") {
+                replace.replace("\r\n", "\n")
+            } else {
+                replace.clone()
+            };
+            let mut new = String::with_capacity(old.len() + replace_text.len());
             new.push_str(&old[..pos]);
-            new.push_str(&replace);
+            new.push_str(&replace_text);
             new.push_str(&old[pos + match_len..]);
             let ins = replace.lines().count().max(1);
             let del = find.lines().count().max(1);
@@ -1340,9 +1366,16 @@ pub struct ExpandTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ExpandArgs {
-    #[serde(rename = "ref")]
+    #[serde(rename = "ref", alias = "id", alias = "handle", alias = "handle_id")]
     reference: String,
     grep: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "wxec_core::args::deserialize_line_range_opt",
+        alias = "range",
+        alias = "line_range",
+        alias = "line"
+    )]
     lines: Option<String>,
     head: Option<u32>,
     tail: Option<u32>,

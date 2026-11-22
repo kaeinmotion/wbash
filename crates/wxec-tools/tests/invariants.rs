@@ -449,4 +449,47 @@ fn test_ergonomic_tool_features() {
     // 10. check accepts dir and target aliases
     let check_cargo = call(&mut d, "check", json!({"dir": ".", "target": "all"}));
     assert!(check_cargo.ok, "{}", check_cargo.text);
+
+    // 11. search with dir alias
+    let search_dir = call(&mut d, "search", json!({"pattern": "config", "dir": "src"}));
+    assert!(search_dir.ok, "{}", search_dir.text);
+
+    // 12. crlf line ending normalization in edit
+    let crlf_file = root.join("crlf.txt");
+    std::fs::write(&crlf_file, "first line\r\nsecond line\r\nthird line\r\n").unwrap();
+    let edit_crlf = call(
+        &mut d,
+        "edit",
+        json!({
+            "path": "crlf.txt",
+            "find": "second line\nthird line",
+            "replace": "updated second\nupdated third"
+        }),
+    );
+    assert!(edit_crlf.ok, "{}", edit_crlf.text);
+    let crlf_after = std::fs::read_to_string(&crlf_file).unwrap();
+    assert!(
+        crlf_after.contains("\r\n"),
+        "must retain CRLF line endings: {crlf_after:?}"
+    );
+    assert!(crlf_after.contains("updated second\r\nupdated third"));
+
+    // 13. expand with id alias
+    let big = call(&mut d, "read", json!({"path": "big.txt", "budget": 64}));
+    let id = handle_id(&big.text);
+    assert!(id.starts_with('~'));
+    let exp_id = call(&mut d, "expand", json!({"id": id, "budget": 4000}));
+    assert!(exp_id.ok, "{}", exp_id.text);
+
+    // 14. git with path and msg alias
+    let git_diff_path = call(&mut d, "git", json!({"op": "diff", "path": "crlf.txt"}));
+    assert!(git_diff_path.ok, "{}", git_diff_path.text);
+
+    d.set_session_tier("s", Tier::GitWrite).unwrap();
+    let git_commit_msg = call(
+        &mut d,
+        "git",
+        json!({"op": "commit", "msg": "test commit with msg alias", "stage": true}),
+    );
+    assert!(git_commit_msg.ok, "{}", git_commit_msg.text);
 }

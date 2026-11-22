@@ -417,10 +417,11 @@ struct RunArgs {
         deserialize_with = "wxec_core::args::deserialize_argv",
         alias = "cmd",
         alias = "args",
-        alias = "command"
+        alias = "command",
+        alias = "exec"
     )]
     argv: Vec<String>,
-    #[serde(default = "dot", alias = "working_dir", alias = "dir")]
+    #[serde(default = "dot", alias = "working_dir", alias = "dir", alias = "path")]
     cwd: String,
     timeout_ms: Option<u64>,
     stdin: Option<String>,

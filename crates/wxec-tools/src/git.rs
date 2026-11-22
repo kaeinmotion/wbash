@@ -24,6 +24,7 @@ struct GitArgs {
         alias = "action"
     )]
     op: String,
+    #[serde(alias = "paths", alias = "files")]
     pathspec: Option<Value>,
     #[serde(default)]
     staged: bool,
@@ -43,12 +44,14 @@ struct GitArgs {
     limit: Option<u32>,
     #[serde(rename = "ref")]
     reference: Option<String>,
+    #[serde(alias = "file", alias = "file_path", alias = "filepath")]
     path: Option<String>,
     #[serde(
         default,
         deserialize_with = "wxec_core::args::deserialize_line_range_opt"
     )]
     lines: Option<String>,
+    #[serde(alias = "msg", alias = "m", alias = "summary")]
     message: Option<String>,
     #[serde(default, alias = "auto_stage", alias = "stage_all", alias = "add_all")]
     stage: bool,
@@ -798,29 +801,36 @@ fn push(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
 }
 
 fn pathspecs(a: &GitArgs) -> Result<Vec<String>> {
-    match &a.pathspec {
-        None => Ok(Vec::new()),
-        Some(Value::String(s)) => Ok(vec![s.clone()]),
-        Some(Value::Array(items)) => {
-            let mut out = Vec::new();
-            for item in items {
-                match item.as_str() {
-                    Some(s) => out.push(s.to_string()),
-                    None => {
-                        return Err(WErr::invalid_args(
-                            "pathspec must be strings",
-                            "pathspec=\"src/\"",
-                        ))
+    if let Some(spec) = &a.pathspec {
+        match spec {
+            Value::String(s) => return Ok(vec![s.clone()]),
+            Value::Array(items) => {
+                let mut out = Vec::new();
+                for item in items {
+                    match item.as_str() {
+                        Some(s) => out.push(s.to_string()),
+                        None => {
+                            return Err(WErr::invalid_args(
+                                "pathspec must be strings",
+                                "pathspec=\"src/\"",
+                            ))
+                        }
                     }
                 }
+                return Ok(out);
             }
-            Ok(out)
+            _ => {
+                return Err(WErr::invalid_args(
+                    "pathspec must be a string or array",
+                    "pathspec=\"src/\"",
+                ))
+            }
         }
-        Some(_) => Err(WErr::invalid_args(
-            "pathspec must be a string or array",
-            "pathspec=\"src/\"",
-        )),
     }
+    if let Some(p) = &a.path {
+        return Ok(vec![p.clone()]);
+    }
+    Ok(Vec::new())
 }
 
 fn map_git_err(err: WErr) -> WErr {
