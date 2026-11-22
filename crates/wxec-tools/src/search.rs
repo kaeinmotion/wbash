@@ -26,6 +26,8 @@ struct SearchArgs {
     #[serde(default)]
     context: u32,
     limit: Option<u32>,
+    #[serde(default)]
+    stats: bool,
 }
 
 fn text() -> String {
@@ -78,7 +80,8 @@ impl Tool for SearchTool {
                 "paths": {"type": "array", "items": {"type": "string"}},
                 "glob": {"type": "string"},
                 "context": {"type": "integer", "minimum": 0, "maximum": 20, "default": 0},
-                "limit": {"type": "integer", "minimum": 1}
+                "limit": {"type": "integer", "minimum": 1},
+                "stats": {"type": "boolean", "default": false}
             },
             "required": ["pattern"],
             "additionalProperties": false
@@ -125,13 +128,14 @@ impl Tool for SearchTool {
         let mut cache_bases = bases_rel.clone();
         cache_bases.sort();
         let cache_key = format!(
-            "{}\0{}\0{}\0{}\0{}\0{}",
+            "{}\0{}\0{}\0{}\0{}\0{}\0{}",
             a.pattern,
             a.mode,
             cache_bases.join("\0"),
             a.glob.clone().unwrap_or_default(),
             a.context,
-            limit
+            limit,
+            a.stats
         );
         if let Some(seen) = ctx
             .ledger
@@ -448,6 +452,13 @@ impl Tool for SearchTool {
                 bytes: h.bytes,
                 hash: h.hash.clone(),
             });
+        }
+
+        if a.stats {
+            result.must(format!(
+                "# stats: scanned {} files, {} matches",
+                stats.scanned_files, total
+            ));
         }
 
         Ok(result)

@@ -254,3 +254,10 @@ fn tool_invariants() {
 
     let _ = Path::new(&root);
 }
+
+#[test]
+fn search_stats_flag() {
+    let (_root, mut d) = setup();
+    let s = call(&mut d, "search", json!({"pattern": "config", "stats": true}));
+    assert!(s.text.contains("# stats: scanned"), "{}", s.text);
+}
