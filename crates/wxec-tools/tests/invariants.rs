@@ -150,6 +150,23 @@ fn tool_invariants() {
         after_fuzzy.text
     );
 
+    // multi-hunk atomic edit
+    let multi = call(
+        &mut d,
+        "edit",
+        json!({
+            "path": "src/config.rs",
+            "edits": [
+                {"find": "//! Config.", "replace": "//! Configuration module."},
+                {"find": "Err(\"none\".into())", "replace": "Err(\"missing\".into())"}
+            ]
+        }),
+    );
+    assert!(multi.ok, "{}", multi.text);
+    let after_multi = call(&mut d, "read", json!({"path": "src/config.rs"}));
+    assert!(after_multi.text.contains("//! Configuration module."));
+    assert!(after_multi.text.contains("Err(\"missing\".into())"));
+
     // ambiguous anchor
     std::fs::write(root.join("dup.txt"), "x\nx\n").unwrap();
     let amb = call(

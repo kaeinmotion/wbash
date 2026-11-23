@@ -258,12 +258,7 @@ fn status(ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
     } else {
         30
     };
-    for (i, (code, path)) in entries.iter().enumerate() {
-        if i >= display_limit {
-            let omitted = total_entries - display_limit;
-            r.low(format!("...+{omitted} files"));
-            break;
-        }
+    for (code, path) in entries.iter().take(display_limit) {
         let class = if code.contains('U') || code == "AA" || code == "DD" {
             wxec_core::types::ItemClass::MustKeep
         } else {
@@ -274,6 +269,22 @@ fn status(ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
             3.0,
             vec![format!("{code} {path}")],
         ));
+    }
+    if total_entries > display_limit {
+        let omitted: Vec<String> = entries[display_limit..]
+            .iter()
+            .map(|(code, path)| format!("{code} {path}"))
+            .collect();
+        let h = ctx
+            .handles
+            .put("status", omitted.join("\n").as_bytes(), "text")?;
+        r.handle(HandleRef {
+            id: h.id.clone(),
+            kind: h.kind.clone(),
+            bytes: h.bytes,
+            hash: h.hash.clone(),
+        });
+        r.low(format!("...+{} files ({})", omitted.len(), h.id));
     }
     r.meta.counts.insert("changed".into(), entries.len() as i64);
     Ok(r)

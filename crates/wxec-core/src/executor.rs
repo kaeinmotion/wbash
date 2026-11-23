@@ -139,11 +139,16 @@ pub fn execute(req: &ExecRequest) -> Result<ExecOutput> {
 
     let start = Instant::now();
     let mut cmd = Command::new(&req.argv[0]);
+    let has_stdin = req.stdin.is_some();
     cmd.args(&req.argv[1..])
         .current_dir(&req.cwd)
         .env_clear()
         .envs(&req.env)
-        .stdin(Stdio::piped())
+        .stdin(if has_stdin {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
@@ -191,17 +196,22 @@ pub fn execute(req: &ExecRequest) -> Result<ExecOutput> {
     let t_flag2 = truncated.clone();
     let err_thread = err.map(|pipe| spawn_reader(pipe, stderr_buf.clone(), cap, t_flag2));
 
-    let stdin_thread = child.stdin.take().map(|mut pipe| {
-        let data = req.stdin.clone();
-        std::thread::spawn(move || {
-            if let Some(data) = data {
-                let _ = pipe.write_all(&data);
-            }
+    let stdin_thread = if has_stdin {
+        child.stdin.take().map(|mut pipe| {
+            let data = req.stdin.clone();
+            std::thread::spawn(move || {
+                if let Some(data) = data {
+                    let _ = pipe.write_all(&data);
+                }
+            })
         })
-    });
+    } else {
+        None
+    };
 
     let deadline = start + Duration::from_millis(req.timeout_ms.max(1));
     let mut timed_out = false;
+    let mut spins: u32 = 0;
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break Some(status),
@@ -234,7 +244,15 @@ pub fn execute(req: &ExecRequest) -> Result<ExecOutput> {
                         Err(_) => break None,
                     }
                 }
-                std::thread::sleep(Duration::from_millis(5));
+                if spins < 10 {
+                    spins += 1;
+                    std::thread::yield_now();
+                } else if spins < 20 {
+                    spins += 1;
+                    std::thread::sleep(Duration::from_micros(250));
+                } else {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
             }
             Err(e) => return Err(WErr::internal(format!("wait: {e}"))),
         }
