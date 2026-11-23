@@ -183,7 +183,7 @@ impl Tool for SearchTool {
         let regex = if a.mode == "regex" || a.word || is_case_insensitive {
             let pat = if a.mode == "regex" {
                 if a.word {
-                    format!(r"\b(?:{})\b", &a.pattern)
+                    format!(r"\b(?:{})\b", a.pattern)
                 } else {
                     a.pattern.clone()
                 }
