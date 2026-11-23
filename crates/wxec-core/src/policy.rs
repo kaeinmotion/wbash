@@ -11,6 +11,7 @@ pub fn resolve(
     allowlist: &[PathBuf],
     must_exist: bool,
 ) -> Result<PathBuf> {
+    let input = input.strip_prefix("file://").unwrap_or(input).trim();
     if input.is_empty() {
         return Err(WErr::invalid_args(
             "empty path",

@@ -629,18 +629,26 @@ fn scan_lines(
         }
 
         let path_lc = f.rel.to_ascii_lowercase();
+        let file_path_boost = path_boost_lc(&path_lc, pat_lc);
         let before = hits.len();
         for (idx, line) in text.lines().enumerate() {
-            let matched = match &matcher {
-                MatchMode::Regex(re) => re.is_match(line),
-                MatchMode::Literal(pat) => line.contains(pat),
+            let (matched, col) = match &matcher {
+                MatchMode::Regex(re) => match re.find(line) {
+                    Some(m) => (true, m.start() + 1),
+                    None => (false, 1),
+                },
+                MatchMode::Literal(pat) => match line.find(pat) {
+                    Some(i) => (true, i + 1),
+                    None => (false, 1),
+                },
             };
             if matched {
-                let col = match &matcher {
-                    MatchMode::Regex(re) => re.find(line).map(|m| m.start() + 1).unwrap_or(1),
-                    MatchMode::Literal(pat) => line.find(pat).map(|i| i + 1).unwrap_or(1),
+                let trimmed = line.trim();
+                let snippet = if trimmed.len() <= 240 {
+                    trimmed.to_string()
+                } else {
+                    trimmed.chars().take(240).collect::<String>()
                 };
-                let snippet = line.trim().chars().take(240).collect::<String>();
                 let is_definition = looks_like_definition(line);
                 let mut score = if is_definition { 8 } else { 3 };
                 if a.mode != "regex" && matches!(matcher, MatchMode::Literal(_)) {
@@ -652,7 +660,7 @@ fn scan_lines(
                         score += 2;
                     }
                 }
-                score += path_boost_lc(&path_lc, pat_lc);
+                score += file_path_boost;
                 hits.push(Hit {
                     path: f.rel.clone(),
                     line: (idx + 1) as u32,

@@ -88,6 +88,7 @@ impl Tool for TreeTool {
         }
         let gs = util::globset(a.glob.as_deref())?;
         let base_rel = ctx.rel(&base);
+        let base_prefix = format!("{base_rel}/");
         let walk = ctx.workspace.walk_cached_arc();
 
         let mut root = DirNode::default();
@@ -97,7 +98,7 @@ impl Tool for TreeTool {
             }
             let rel = if base_rel == "." {
                 f.rel.as_str()
-            } else if let Some(stripped) = f.rel.strip_prefix(&format!("{base_rel}/")) {
+            } else if let Some(stripped) = f.rel.strip_prefix(&base_prefix) {
                 stripped
             } else {
                 f.rel.as_str()
@@ -350,6 +351,9 @@ impl Tool for ReadTool {
             "read",
             "pass path plus optional lines, symbol, outline, expect_hash, force",
         )?;
+        if let Some(rest) = a.path.strip_prefix("file://") {
+            a.path = rest.to_string();
+        }
         if a.lines.is_none()
             && !ctx
                 .resolve(&a.path, false)
@@ -986,6 +990,9 @@ impl Tool for EditTool {
             "use one of find+replace, lines+replace, create+content, delete",
         )?;
         let mut path_str = a.path.clone();
+        if let Some(rest) = path_str.strip_prefix("file://") {
+            path_str = rest.to_string();
+        }
         let mut lines = a.lines.clone();
         if lines.is_none()
             && !ctx
