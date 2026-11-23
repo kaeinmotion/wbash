@@ -15,19 +15,19 @@ comprehensive architectural specification, operator manual, and client integrati
 - [chapter 7: enterprise security, jailing & permission tiers](#chapter-7-enterprise-security-jailing--permission-tiers)
 
 ---
+---
 
 ### **chapter 1: architecture & system design**
 
-wxec operates as an in-process, protocol-level mediator between large language models and software workspaces. traditional agents consume excessive tokens parsing unstructured terminal stdout/stderr. wxec solves this through four core subsystems:
+wxec operates as an in-process, protocol-level mediator between large language models and software workspaces with an uncompromising **mcp only** architecture. our core mission is **super low token usage** while seamlessly powering legacy environments (bash, zsh, tmux, ci/cd pipelines, remote headless shells) without incurring raw terminal token waste.
 
+traditional terminal agents consume excessive tokens parsing unstructured terminal stdout/stderr, shell prompts, and ANSI escapes. wxec solves this through five core subsystems:
+
+- **mcp-only runtime boundary**: enforces structured json-rpc over stdio, eliminating shell noise and preventing agents from falling into token-draining direct cli loops.
 - **session hash ledger**: maintains a stateful blake3 cryptographic digest of all file reads across agent turns. unchanged files return an instant 27-token acknowledgment rather than re-emitting file contents.
 - **lossless handle store (`~id`)**: large outputs (diffs, compilation logs, directory trees) exceeding context budget thresholds are offloaded to atomic cache handles. models receive high-density summaries and expand targeted line offsets on demand via `expand`.
 - **simd workspace cache**: in-memory directory index utilizing vectorized substring pre-matching (`memmem`), executing workspace-wide searches in sub-millisecond durations.
 - **calibrated budget fitting**: prioritizes actionable diagnostics, compilation errors, and exact line references while compressing ambient noise into handles.
-
----
-
-### **chapter 2: empirical benchmarks & cost reduction**
 
 measured across real-world developer workflows using the standard `cl100k_base` tokenizer:
 
