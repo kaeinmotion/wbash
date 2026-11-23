@@ -238,7 +238,18 @@ fn status(ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
         "git",
         format!("branch {branch_name}{tracking}, {} changed", entries.len()),
     );
-    for (code, path) in &entries {
+    let total_entries = entries.len();
+    let display_limit = if ctx.config.output.verbosity == "verbose" {
+        total_entries
+    } else {
+        30
+    };
+    for (i, (code, path)) in entries.iter().enumerate() {
+        if i >= display_limit {
+            let omitted = total_entries - display_limit;
+            r.low(format!("...+{omitted} files"));
+            break;
+        }
         let class = if code.contains('U') || code == "AA" || code == "DD" {
             wxec_core::types::ItemClass::MustKeep
         } else {

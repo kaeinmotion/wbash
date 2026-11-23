@@ -844,14 +844,16 @@ impl SymbolIndex {
     }
 
     pub fn find_symbol(&self, path: &Path, source: &str, name: &str) -> Option<Symbol> {
+        let bare_name = name.rsplit_once("::").map(|(_, b)| b).unwrap_or(name);
+        let bare_name = bare_name.rsplit_once('.').map(|(_, b)| b).unwrap_or(bare_name);
         let outline = self.symbols(path, source);
         outline
             .symbols
             .into_iter()
-            .filter(|s| s.name == name)
+            .filter(|s| s.name == name || s.name == bare_name)
             .min_by_key(|s| (s.start_line, s.end_line))
             .or_else(|| {
-                let lower = name.to_ascii_lowercase();
+                let lower = bare_name.to_ascii_lowercase();
                 let o = self.symbols(path, source);
                 o.symbols
                     .into_iter()

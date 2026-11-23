@@ -353,7 +353,7 @@ impl Tool for SearchTool {
         if walk.truncated {
             result.note("search_truncated");
         }
-        if total == 0 && stats.skipped_binary > 0 {
+        if total == 0 && stats.skipped_binary > 0 && ctx.config.output.verbosity == "verbose" {
             result.note(format!(
                 "skipped {}",
                 util::plural(stats.skipped_binary, "binary file")
