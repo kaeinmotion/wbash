@@ -20,7 +20,7 @@ case "$OS" in
   *) echo "unsupported os: $OS" >&2; exit 1 ;;
 esac
 
-TAG="${WXEC_VERSION:-v0.2.7}"
+TAG="${WXEC_VERSION:-v0.2.8}"
 URL="https://github.com/${REPO}/releases/download/${TAG}/wxec-${TARGET}.tar.gz"
 
 DEST_DIR="${WXEC_INSTALL_DIR:-$HOME/.local/bin}"

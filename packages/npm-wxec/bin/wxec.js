@@ -5,7 +5,7 @@ const path = require('path');
 const os = require('os');
 const https = require('https');
 
-const VERSION = 'v0.2.7';
+const VERSION = 'v0.2.8';
 const REPO = 'kaeinmotion/wxec';
 
 function getTarget() {

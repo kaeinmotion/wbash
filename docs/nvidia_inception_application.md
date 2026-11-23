@@ -11,7 +11,7 @@ this document contains the complete, ready-to-submit application dossier for **w
 | **company / project name** | wxec |
 | **tagline** | high-performance, token-efficient mcp engine for autonomous coding agents |
 | **primary website / repo** | https://github.com/kaeinmotion/wxec |
-| **release package** | https://github.com/kaeinmotion/wxec/releases/tag/v0.2.7 |
+| **release package** | https://github.com/kaeinmotion/wxec/releases/tag/v0.2.8 |
 | **industry vertical** | generative ai / developer tools / agentic infrastructure |
 | **target audience** | ai agent builders, enterprise coding platforms, ide developers, autonomous swes |
 | **founding stage** | early-stage / open-core developer infrastructure |
