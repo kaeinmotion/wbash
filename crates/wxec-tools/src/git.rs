@@ -134,7 +134,10 @@ impl Tool for GitTool {
                     policy::check_tier(ctx.tier, Tier::GitWrite, "git custom")?;
                     let refs: Vec<&str> = custom_args.iter().map(String::as_str).collect();
                     let out = git(ctx, &refs).map_err(map_git_err)?;
-                    let mut r = ToolResult::new("git", format!("custom git, {}", format_duration_ms(out.duration_ms)));
+                    let mut r = ToolResult::new(
+                        "git",
+                        format!("custom git, {}", format_duration_ms(out.duration_ms)),
+                    );
                     r.meta.ok = out.exit.is_success();
                     r.meta.exit = Some(out.exit);
                     let text = out.combined();
@@ -150,7 +153,10 @@ impl Tool for GitTool {
                     }
                     Ok(r)
                 } else {
-                    Err(WErr::invalid_args("custom git requires args array", "args=[\"describe\", \"--tags\"]"))
+                    Err(WErr::invalid_args(
+                        "custom git requires args array",
+                        "args=[\"describe\", \"--tags\"]",
+                    ))
                 }
             }
             other => Err(WErr::with_hint(
@@ -990,7 +996,7 @@ fn remote(ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
     }
     let text = out.stdout_str();
     let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
-    let count = lines.len() / 2.max(1);
+    let count = (lines.len() / 2).max(1);
     let mut r = ToolResult::new("git", format!("{count} remotes"));
     for l in lines {
         r.low(l.to_string());

@@ -350,7 +350,12 @@ impl Tool for ReadTool {
             "read",
             "pass path plus optional lines, symbol, outline, expect_hash, force",
         )?;
-        if a.lines.is_none() && !ctx.resolve(&a.path, false).map(|p| p.exists()).unwrap_or(false) {
+        if a.lines.is_none()
+            && !ctx
+                .resolve(&a.path, false)
+                .map(|p| p.exists())
+                .unwrap_or(false)
+        {
             let split_spec = if let Some((file_part, line_part)) = a.path.rsplit_once('#') {
                 if let Some(rest) = line_part.strip_prefix('L') {
                     let cleaned = rest.replace('L', "").replace('-', ":");
@@ -969,7 +974,12 @@ impl Tool for EditTool {
         )?;
         let mut path_str = a.path.clone();
         let mut lines = a.lines.clone();
-        if lines.is_none() && !ctx.resolve(&path_str, false).map(|p| p.exists()).unwrap_or(false) {
+        if lines.is_none()
+            && !ctx
+                .resolve(&path_str, false)
+                .map(|p| p.exists())
+                .unwrap_or(false)
+        {
             let split_spec = if let Some((file_part, line_part)) = path_str.rsplit_once('#') {
                 if let Some(rest) = line_part.strip_prefix('L') {
                     let cleaned = rest.replace('L', "").replace('-', ":");
@@ -1065,7 +1075,10 @@ impl Tool for EditTool {
 
         if a.append || a.prepend {
             let content = content.clone().ok_or_else(|| {
-                WErr::invalid_args("append/prepend requires content", "content=<text to append>")
+                WErr::invalid_args(
+                    "append/prepend requires content",
+                    "content=<text to append>",
+                )
             })?;
             let old = if abs.exists() {
                 let file = wxec_index::read_text(&abs)

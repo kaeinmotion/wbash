@@ -24,10 +24,7 @@ struct SearchArgs {
     #[serde(default, alias = "files")]
     paths: Vec<String>,
     glob: Option<String>,
-    #[serde(
-        default,
-        deserialize_with = "wxec_core::args::deserialize_u32_lenient"
-    )]
+    #[serde(default, deserialize_with = "wxec_core::args::deserialize_u32_lenient")]
     context: u32,
     #[serde(
         default,
