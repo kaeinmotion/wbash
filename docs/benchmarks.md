@@ -43,31 +43,30 @@ agent 1 uses raw shell commands intercepted and filtered through `/opt/homebrew/
 ---
 
 #### agent 2: `wxec` (native batched mcp server)
-agent 2 uses `wxec`'s native multi-tool batching over stdio / cli.
+agent 2 uses `wxec`'s native multi-tool batching over persistent mcp stdio.
 
 | turn | action | operations batched in turn | tokens in | tokens out | cumulative context | latency |
 | :--- | :--- | :--- | ---: | ---: | ---: | ---: |
-| **1** | discover & search | `batch("check test", "search 'fn add'", "search 'fn clamp'")` | 27 | 105 | 132 | 842.5ms |
-| **2** | targeted read | `batch("read src/lib.rs 1:25")` | 21 | 265 | 418 | 22.5ms |
-| **3** | edit, check & diff | `batch(edit add, edit clamp, "check test", "git diff")` | 164 | 166 | 748 | 921.0ms |
+| **1** | discover & search | `call_mcp_tool("batch", [check test, search 'fn add', search 'fn clamp'])` | 77 | 95 | 172 | 920.3ms |
+| **2** | targeted read | `call_mcp_tool("batch", [read src/lib.rs 1:25])` | 45 | 154 | 371 | 2.4ms |
+| **3** | edit, check & diff | `call_mcp_tool("batch", [edit add, edit clamp, check test, git diff])` | 372 | 166 | 909 | 1289.5ms |
 
 - **total turns**: 3 turns
-- **total tokens**: 748 tokens (in: 212, out: 536)
-- **final context footprint**: 748 tokens
-- **wall time**: 1,786.0ms
+- **total tokens**: 909 tokens (in: 494, out: 415)
+- **final context footprint**: 909 tokens
+- **wall time**: 2,212.2ms
 
 ---
 
 ### empirical comparison summary
 
-| metric | agent with `rtk` | agent with `wxec` | measured advantage |
+| metric | agent with `rtk` | agent with `wxec` (mcp) | measured advantage |
 | :--- | :--- | :--- | :--- |
 | **turns / round-trips** | **9 turns** | **3 turns** | **3.0x fewer turns** |
-| **total tokens exchanged** | **1,391 tokens** | **748 tokens** | **46.2% token savings** |
-| **context footprint at end** | **1,391 tokens** | **748 tokens** | **46.2% cleaner context** |
-| **execution wall time** | **2,447.8ms** | **1,786.0ms** | **1.37x faster local execution** |
-| **llm inference latency (at ~1.5s/turn)** | ~13.5s | ~4.5s | **~3.0x faster task completion** |
-
+| **total tokens exchanged** | **1,393 tokens** | **909 tokens** | **34.7% token savings** |
+| **context footprint at end** | **1,393 tokens** | **909 tokens** | **34.7% cleaner context** |
+| **execution wall time** | **2,545.6ms** | **2,212.2ms** | **1.15x faster local execution** |
+| **llm inference latency (at ~1.8s/turn)** | ~16.2s | ~5.4s | **~3.0x faster task completion** |
 ---
 
 ### architectural analysis: why `wxec` wins

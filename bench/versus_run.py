@@ -127,38 +127,110 @@ def run_rtk_agent():
     passed = (c == 0) and ("passed" in out.lower() or "test result: ok" in out.lower())
     shutil.rmtree(workdir.parent, ignore_errors=True)
     return {"name": "rtk", "passed": passed, "turns": turns}
+import json
 
 def run_wxec_agent():
     workdir = setup_workspace()
     env = os.environ.copy()
-    env["WXEC_ALLOW_CLI"] = "1"
     env["CARGO_TERM_COLOR"] = "never"
     
+    proc = subprocess.Popen(
+        [str(W_BIN)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=workdir,
+        env=env,
+        bufsize=1,
+    )
+    
+    # Handshake
+    init_req = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "agent", "version": "1.0"},
+        },
+    }
+    proc.stdin.write(json.dumps(init_req) + "\n")
+    proc.stdin.flush()
+    proc.stdout.readline()
+    
+    proc.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n")
+    proc.stdin.flush()
+    
+    msg_id = 2
     turns = []
     
-    # turn 1: batch discover failures + search definitions
-    c, out, ms, disp = run_cmd([str(W_BIN), "batch", "check test", "search 'fn add' src", "search 'fn clamp' src"], workdir, env)
-    turns.append({"turn": 1, "action": "batch(check, search x2)", "cmd": disp, "out": out, "ms": ms})
+    def mcp_call(tool: str, args: dict, action_name: str) -> dict:
+        nonlocal msg_id
+        req = {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "method": "tools/call",
+            "params": {"name": tool, "arguments": args},
+        }
+        msg_id += 1
+        t0 = time.perf_counter()
+        proc.stdin.write(json.dumps(req) + "\n")
+        proc.stdin.flush()
+        line = proc.stdout.readline()
+        dt_ms = (time.perf_counter() - t0) * 1000
+        res = json.loads(line)
+        content_items = res.get("result", {}).get("content", [])
+        text_out = "\n".join(item.get("text", "") for item in content_items)
+        disp_cmd = f"call_mcp_tool(ServerName=\"wxec\", ToolName=\"{tool}\", Arguments={json.dumps(args)})"
+        return {"action": action_name, "cmd": disp_cmd, "out": text_out, "ms": dt_ms}
 
-    # turn 2: batch read both function definitions
-    c, out, ms, disp = run_cmd([str(W_BIN), "batch", "read src/lib.rs 1:25"], workdir, env)
-    turns.append({"turn": 2, "action": "batch(read 1:25)", "cmd": disp, "out": out, "ms": ms})
+    # Turn 1: discover failures + search definitions
+    t1 = mcp_call(
+        "batch",
+        {"calls": [
+            {"tool": "check", "args": {"kind": "test"}},
+            {"tool": "search", "args": {"pattern": "fn add", "path": "src"}},
+            {"tool": "search", "args": {"pattern": "fn clamp", "path": "src"}},
+        ]},
+        "batch(check, search x2)"
+    )
+    turns.append({"turn": 1, **t1})
 
-    # turn 3: batch edit both functions + check verify + git diff
+    # Turn 2: read definitions
+    t2 = mcp_call(
+        "batch",
+        {"calls": [
+            {"tool": "read", "args": {"path": "src/lib.rs", "lines": "1:25"}},
+        ]},
+        "batch(read 1:25)"
+    )
+    turns.append({"turn": 2, **t2})
+
+    # Turn 3: batch edit both functions + check verify + git diff
     clamp_fix = "pub fn clamp(v: i32, lo: i32, hi: i32) -> i32 {\n    if v < lo {\n        lo\n    } else if v > hi {\n        hi\n    } else {\n        v\n    }\n}"
     clamp_bug = "pub fn clamp(v: i32, lo: i32, hi: i32) -> i32 {\n    let _ = (lo, hi);\n    v\n}"
     
-    edit1 = 'edit src/lib.rs find="pub fn add(a: i32, b: i32) -> i32 {\n    a - b" replace="pub fn add(a: i32, b: i32) -> i32 {\n    a + b"'
-    edit2 = f'edit src/lib.rs find="{clamp_bug}" replace="{clamp_fix}"'
-    
-    c, out, ms, disp = run_cmd([str(W_BIN), "batch", edit1, edit2, "check test", "git diff"], workdir, env)
-    turns.append({"turn": 3, "action": "batch(edit x2, check, diff)", "cmd": disp, "out": out, "ms": ms})
+    t3 = mcp_call(
+        "batch",
+        {"calls": [
+            {"tool": "edit", "args": {"path": "src/lib.rs", "find": "pub fn add(a: i32, b: i32) -> i32 {\n    a - b", "replace": "pub fn add(a: i32, b: i32) -> i32 {\n    a + b"}},
+            {"tool": "edit", "args": {"path": "src/lib.rs", "find": clamp_bug, "replace": clamp_fix}},
+            {"tool": "check", "args": {"kind": "test"}},
+            {"tool": "git", "args": {"op": "diff"}},
+        ]},
+        "batch(edit x2, check, diff)"
+    )
+    turns.append({"turn": 3, **t3})
 
-    # verify success
-    passed = ("ok, 4 passed" in out or "ok" in out) and c == 0
+    proc.stdin.close()
+    proc.wait(timeout=5)
+    
+    out_last = turns[-1]["out"]
+    passed = "ok, 4 passed" in out_last or "ok" in out_last
     shutil.rmtree(workdir.parent, ignore_errors=True)
     return {"name": "wxec", "passed": passed, "turns": turns}
-
 def main():
     print("running agent with rtk...")
     r_rtk = run_rtk_agent()
