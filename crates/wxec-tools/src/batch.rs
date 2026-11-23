@@ -202,7 +202,10 @@ impl Tool for BatchTool {
         result.meta.counts.insert("ok".into(), ok_count as i64);
         result.meta.counts.insert("error".into(), err_count as i64);
         result.meta.counts.insert("total".into(), n as i64);
-        if a.compact && err_count == 0 {
+        let only_actions = a.calls.iter().all(|c| {
+            matches!(c.tool.as_str(), "edit" | "check" | "git" | "replace")
+        });
+        if (a.compact || only_actions) && err_count == 0 {
             result.items.clear();
             let mut parts = Vec::new();
             if total_ins > 0 || total_del > 0 {

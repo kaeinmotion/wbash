@@ -558,7 +558,7 @@ impl Tool for ReadTool {
                 format!("{display}:{start}-{end} ({count} lines)")
             };
             let mut r = ToolResult::new("read", header);
-            if spec_mismatch(spec, start, end, line_count) {
+            if ctx.config.output.verbosity == "verbose" && spec_mismatch(spec, start, end, line_count) {
                 r.note(format!("clamped {spec} -> {start}:{end}"));
             }
             let mut raw = String::new();
@@ -1570,7 +1570,8 @@ fn post_check(
     r.header
         .push_str(&format!("; {} syntax errors", introduced.len()));
     r.meta.ok = false;
-    for e in &introduced {
+    let max_diag = 3;
+    for e in introduced.iter().take(max_diag) {
         r.diag(Diagnostic {
             file: ctx.rel(abs),
             line: e.line as u32,
@@ -1581,8 +1582,21 @@ fn post_check(
             tool: Some("tree-sitter".to_string()),
         });
     }
+    if introduced.len() > max_diag {
+        r.note(format!("...+{} syntax errors elided", introduced.len() - max_diag));
+    }
     let mut lines = Vec::new();
+    let mut all_err_lines = Vec::new();
     for e in &introduced {
+        all_err_lines.push(format!(
+            "{}:{}:{} error {}",
+            ctx.rel(abs),
+            e.line,
+            e.col,
+            e.message
+        ));
+    }
+    for e in introduced.iter().take(max_diag) {
         lines.push(format!(
             "{}:{}:{} error {}",
             ctx.rel(abs),
@@ -1593,7 +1607,7 @@ fn post_check(
     }
     let h = ctx
         .handles
-        .put("post_check", lines.join("\n").as_bytes(), "text")?;
+        .put("post_check", all_err_lines.join("\n").as_bytes(), "text")?;
     for line in lines {
         r.must(line);
     }
