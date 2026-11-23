@@ -279,6 +279,7 @@ impl Tool for CheckTool {
                 header.push_str(&format!(", {ignored} ignored"));
             }
         }
+        result.header = header;
         let filtered_diags = if errors > 0 && ctx.config.output.verbosity != "verbose" {
             if warnings > 0 {
                 result.note(format!("{warnings} warnings omitted while errors exist"));

@@ -481,7 +481,50 @@ impl Tool for ReadTool {
             .unwrap_or(0);
 
         if let Some(sym) = &a.symbol {
-            let found = ctx.symbols.find_symbol(&abs, &text, sym).ok_or_else(|| {
+            let found = ctx.symbols.find_symbol(&abs, &text, sym).or_else(|| {
+                let bare_sym = sym.rsplit_once("::").map(|(_, b)| b).unwrap_or(sym);
+                let bare_sym = bare_sym.rsplit_once('.').map(|(_, b)| b).unwrap_or(bare_sym);
+                let pat = format!(r"\b(fn|def|function|class|struct|enum|type|const|let|var)\s+{}\b", regex::escape(bare_sym));
+                if let Ok(re) = regex::Regex::new(&pat) {
+                    for (idx, line) in lines.iter().enumerate() {
+                        if re.is_match(line) {
+                            let start_line = idx + 1;
+                            let mut end_line = (start_line + 30).min(line_count);
+                            let mut depth = 0i32;
+                            let mut started = false;
+                            for (j, l) in lines[idx..].iter().enumerate() {
+                                let cur = idx + j + 1;
+                                for c in l.chars() {
+                                    if c == '{' {
+                                        depth += 1;
+                                        started = true;
+                                    } else if c == '}' {
+                                        depth -= 1;
+                                    }
+                                }
+                                if started && depth <= 0 {
+                                    end_line = cur;
+                                    break;
+                                }
+                                if j > 60 {
+                                    end_line = cur;
+                                    break;
+                                }
+                            }
+                            return Some(wxec_index::Symbol {
+                                name: bare_sym.to_string(),
+                                kind: "heuristic".to_string(),
+                                start_line,
+                                end_line,
+                                indent: 0,
+                                line_text: line.to_string(),
+                                doc: None,
+                            });
+                        }
+                    }
+                }
+                None
+            }).ok_or_else(|| {
                 WErr::with_hint(
                     "symbol_not_found",
                     format!("symbol '{sym}' in {display}"),
@@ -553,10 +596,16 @@ impl Tool for ReadTool {
         if let Some(spec) = &a.lines {
             let (start, end) = parse_line_range_clamped(spec, line_count)?;
             let count = end - start + 1;
-            let header = if a.expect_hash.is_some() {
-                format!("{display}:{start}-{end} ({count} lines, {short})")
+            let range_str = if start == end {
+                format!("{start}")
             } else {
-                format!("{display}:{start}-{end} ({count} lines)")
+                format!("{start}-{end}")
+            };
+            let count_str = util::plural(count, "line");
+            let header = if a.expect_hash.is_some() {
+                format!("{display}:{range_str} ({count_str}, {short})")
+            } else {
+                format!("{display}:{range_str} ({count_str})")
             };
             let mut r = ToolResult::new("read", header);
             if ctx.config.output.verbosity == "verbose" && spec_mismatch(spec, start, end, line_count) {
