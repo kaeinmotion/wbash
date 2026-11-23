@@ -74,6 +74,13 @@ impl std::error::Error for WErr {}
 
 impl From<std::io::Error> for WErr {
     fn from(e: std::io::Error) -> Self {
+        if let Some(28) = e.raw_os_error() {
+            return WErr::with_hint(
+                "disk_full",
+                "no space left on device",
+                "free disk space or clean target/ build artifacts",
+            );
+        }
         let code = match e.kind() {
             std::io::ErrorKind::NotFound => "not_found",
             std::io::ErrorKind::PermissionDenied => "permission_denied",

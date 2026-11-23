@@ -388,6 +388,12 @@ impl Tool for ReplaceTool {
                 util::plural(total_replacements, "match"),
                 util::plural(files_changed, "file")
             )
+        } else if files_changed == 1 {
+            format!(
+                "replaced {} in {}",
+                util::plural(total_replacements, "match"),
+                planned[0].rel
+            )
         } else {
             format!(
                 "replaced {} in {}",
@@ -404,6 +410,8 @@ impl Tool for ReplaceTool {
             if truncated {
                 result.note("diff_truncated");
             }
+        } else if files_changed == 1 {
+            // single-file replacement already named in header
         } else if files_changed <= 6 {
             for s in file_summaries {
                 result.low(s);
