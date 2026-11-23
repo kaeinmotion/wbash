@@ -670,4 +670,37 @@ fn test_ergonomic_tool_features() {
     let verify_paste = call(&mut d, "read", json!({"path": "handle_paste.txt"}));
     assert!(verify_paste.ok, "{}", verify_paste.text);
     assert!(verify_paste.text.contains("line 11"));
+    // 29. edit with occurrence (1, -1), near_line, and all disambiguation
+    let dup_file = root.join("duplicate.txt");
+    std::fs::write(&dup_file, "target_line\nmiddle\ntarget_line\nend\ntarget_line\n").unwrap();
+
+    // 29a. occurrence 1
+    let edit_occ1 = call(
+        &mut d,
+        "edit",
+        json!({"path": "duplicate.txt", "find": "target_line", "replace": "first_target", "occurrence": 1}),
+    );
+    assert!(edit_occ1.ok, "{}", edit_occ1.text);
+    let verify_occ1 = call(&mut d, "read", json!({"path": "duplicate.txt", "lines": "1:1"}));
+    assert!(verify_occ1.text.contains("1: first_target"));
+
+    // 29b. occurrence -1 (last)
+    let edit_last = call(
+        &mut d,
+        "edit",
+        json!({"path": "duplicate.txt", "find": "target_line", "replace": "last_target", "occurrence": -1}),
+    );
+    assert!(edit_last.ok, "{}", edit_last.text);
+    let verify_last = call(&mut d, "read", json!({"path": "duplicate.txt", "lines": "5:5"}));
+    assert!(verify_last.text.contains("5: last_target"));
+
+    // 29c. all: true replaces all remaining matches
+    let edit_all = call(
+        &mut d,
+        "edit",
+        json!({"path": "duplicate.txt", "find": "target_line", "replace": "middle_target", "all": true}),
+    );
+    assert!(edit_all.ok, "{}", edit_all.text);
+    let verify_all = call(&mut d, "read", json!({"path": "duplicate.txt", "lines": "3:3"}));
+    assert!(verify_all.text.contains("3: middle_target"));
 }

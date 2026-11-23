@@ -437,7 +437,7 @@ impl Tool for RunTool {
         "run"
     }
     fn description(&self) -> &'static str {
-        "Execute argv directly; normalized output."
+        "Execute command directly."
     }
     fn min_tier(&self) -> Tier {
         Tier::Execute
@@ -557,7 +557,7 @@ impl Tool for ShTool {
         "sh"
     }
     fn description(&self) -> &'static str {
-        "Run shell command (requires allow_shell); compact."
+        "Run shell command."
     }
     fn min_tier(&self) -> Tier {
         Tier::Execute

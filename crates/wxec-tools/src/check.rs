@@ -71,10 +71,10 @@ impl Tool for CheckTool {
         json!({
             "type": "object",
             "properties": {
-                "kind": {"type": "string", "enum": ["all", "build", "lint", "types", "test"], "default": "all"},
-                "path": {"type": "string", "default": "."}
+                "kind": {"type": "string", "enum": ["all", "build", "lint", "types", "test"]},
+                "path": {"type": "string"},
+                "args": {"type": ["string", "array"]}
             },
-            "additionalProperties": false
         })
     }
     fn call(&self, args: &Value, ctx: &mut ToolContext<'_>) -> Result<ToolResult> {

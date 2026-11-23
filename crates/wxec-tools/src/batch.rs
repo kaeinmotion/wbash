@@ -49,7 +49,7 @@ impl Tool for BatchTool {
         "batch"
     }
     fn description(&self) -> &'static str {
-        "Run up to 16 tool calls in one turn."
+        "Run multiple tools in one turn. Chain independent calls into batch."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly

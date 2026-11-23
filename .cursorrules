@@ -1,0 +1,6 @@
+# Cursor Rules for wxec Tooling
+# Always prioritize batching and token efficiency
+
+- Prefer wxec MCP tools over raw terminal commands.
+- ALWAYS chain independent operations (search, read, edit, check, git) inside `batch` tool calls.
+- Use `@~id` handle references to pipe outputs directly into edits without re-transmitting tokens.

@@ -76,7 +76,7 @@ impl Tool for GitTool {
         "git"
     }
     fn description(&self) -> &'static str {
-        "Git status, diff, log, commit, push; compact."
+        "Git operations; compact."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly

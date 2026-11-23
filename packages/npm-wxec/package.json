@@ -1,0 +1,27 @@
+{
+  "name": "wxec",
+  "version": "0.2.7",
+  "description": "Ultra-low token MCP server and CLI for coding agents",
+  "bin": {
+    "wxec": "./bin/wxec.js"
+  },
+  "scripts": {
+    "start": "node ./bin/wxec.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "token-saving",
+    "coding-agent",
+    "ast-editor"
+  ],
+  "author": "wxec contributors",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kaeinmotion/wxec.git"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

@@ -325,7 +325,7 @@ impl Tool for ReadTool {
         "read"
     }
     fn description(&self) -> &'static str {
-        "Read file or line range."
+        "Read file or range. Repeated reads return compact stubs."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly
@@ -338,9 +338,9 @@ impl Tool for ReadTool {
                 "paths": {"type": "array", "items": {"type": "string"}},
                 "lines": {"type": ["string", "array"]},
                 "symbol": {"type": "string"},
-                "outline": {"type": "boolean", "default": false},
+                "outline": {"type": "boolean"},
                 "expect_hash": {"type": "string"},
-                "force": {"type": "boolean", "default": false}
+                "force": {"type": "boolean"}
             },
             "additionalProperties": false
         })
@@ -898,16 +898,20 @@ struct EditArgs {
     dry_run: bool,
     #[serde(default, alias = "replace_all")]
     all: bool,
+    #[serde(alias = "match", alias = "nth", alias = "index")]
+    occurrence: Option<i32>,
+    #[serde(alias = "near", alias = "around", alias = "near_line")]
+    near_line: Option<usize>,
 }
 
-fn fuzzy_match_anchor(old: &str, find: &str) -> Option<(usize, usize)> {
+fn fuzzy_match_anchor_all(old: &str, find: &str) -> Vec<(usize, usize)> {
     let find_trimmed_lines: Vec<&str> = find
         .lines()
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .collect();
     if find_trimmed_lines.is_empty() {
-        return None;
+        return Vec::new();
     }
     let mut old_lines = Vec::new();
     let mut offset = 0;
@@ -921,7 +925,7 @@ fn fuzzy_match_anchor(old: &str, find: &str) -> Option<(usize, usize)> {
         }
     }
     if old_lines.len() < find_trimmed_lines.len() {
-        return None;
+        return Vec::new();
     }
     let mut matches = Vec::new();
     let n = find_trimmed_lines.len();
@@ -937,24 +941,16 @@ fn fuzzy_match_anchor(old: &str, find: &str) -> Option<(usize, usize)> {
             let match_start = old_lines[i].0;
             let match_end = old_lines[i + n - 1].1;
             matches.push((match_start, match_end));
-            if matches.len() > 1 {
-                return None;
-            }
         }
     }
-    if matches.len() == 1 {
-        Some(matches[0])
-    } else {
-        None
-    }
+    matches
 }
-
 impl Tool for EditTool {
     fn name(&self) -> &'static str {
         "edit"
     }
     fn description(&self) -> &'static str {
-        "Exact edit, line range or file create."
+        "AST & line editor. Supports handles, occurrence, near_line."
     }
     fn min_tier(&self) -> Tier {
         Tier::WriteWorkspace
@@ -973,11 +969,14 @@ impl Tool for EditTool {
                 "find": {"type": "string"},
                 "replace": {"type": "string"},
                 "lines": {"type": ["string", "array"]},
+                "occurrence": {"type": "integer"},
+                "all": {"type": "boolean"},
+                "near_line": {"type": "integer"},
                 "create": {"type": "boolean"},
                 "content": {"type": "string"},
-                "overwrite": {"type": "boolean", "default": false},
+                "overwrite": {"type": "boolean"},
                 "delete": {"type": "boolean"},
-                "expect_hash": {"type": "string"},
+                "expect_hash": {"type": "string"}
             },
             "required": ["path"],
             "additionalProperties": false
@@ -1261,64 +1260,138 @@ impl Tool for EditTool {
                 let del = find.lines().count().max(1) * matches;
                 (new, ins, del)
             } else {
-                let mut it = old.match_indices(find.as_str()).map(|(i, _)| i);
-                let pos_and_len = match it.next() {
-                    Some(pos) => {
-                        if let Some(second) = it.next() {
-                            let mut positions = vec![pos, second];
-                            let mut more = 0usize;
-                            for p in it {
-                                more += 1;
-                                if positions.len() < 5 {
-                                    positions.push(p);
-                                }
-                            }
-                            let n = 2 + more;
-                            let locs: Vec<String> = positions
-                                .iter()
-                                .take(5)
-                                .map(|p| {
-                                    let line = old[..*p].matches('\n').count() + 1;
-                                    let col =
-                                        p - old[..*p].rfind('\n').map(|i| i + 1).unwrap_or(0) + 1;
-                                    format!("{line}:{col}")
-                                })
-                                .collect();
-                            return Err(WErr::with_hint(
-                                "ambiguous_anchor",
-                                format!("{n} matches in {display} at {}", locs.join(", ")),
-                                format!("try: w read path={display} lines=<start>:<end>"),
-                            ));
-                        }
-                        Some((pos, find.len()))
+                let mut all_positions: Vec<usize> =
+                    old.match_indices(find.as_str()).map(|(i, _)| i).collect();
+                let mut match_len = find.len();
+                if all_positions.is_empty() {
+                    let normalized = if old.contains("\r\n") && !find.contains("\r\n") {
+                        find.replace('\n', "\r\n")
+                    } else if !old.contains("\r\n") && find.contains("\r\n") {
+                        find.replace("\r\n", "\n")
+                    } else {
+                        find.clone()
+                    };
+                    if normalized != *find {
+                        all_positions = old
+                            .match_indices(normalized.as_str())
+                            .map(|(i, _)| i)
+                            .collect();
+                        match_len = normalized.len();
                     }
-                    None => {
-                        let normalized = if old.contains("\r\n") && !find.contains("\r\n") {
-                            find.replace('\n', "\r\n")
-                        } else if !old.contains("\r\n") && find.contains("\r\n") {
-                            find.replace("\r\n", "\n")
-                        } else {
-                            find.clone()
-                        };
-                        if normalized != *find {
-                            let mut nit = old.match_indices(normalized.as_str()).map(|(i, _)| i);
-                            if let Some(pos) = nit.next() {
-                                if nit.next().is_none() {
-                                    Some((pos, normalized.len()))
-                                } else {
-                                    None
-                                }
-                            } else if let Some((start, end)) = fuzzy_match_anchor(&old, find) {
-                                Some((start, end - start))
-                            } else {
-                                None
-                            }
-                        } else if let Some((start, end)) = fuzzy_match_anchor(&old, find) {
-                            Some((start, end - start))
+                }
+
+                let fuzzy_matches = if all_positions.is_empty() {
+                    fuzzy_match_anchor_all(&old, find)
+                } else {
+                    Vec::new()
+                };
+
+                let pos_and_len = if !all_positions.is_empty() {
+                    if all_positions.len() == 1 {
+                        Some((all_positions[0], match_len))
+                    } else if let Some(occ) = a.occurrence {
+                        let idx = if occ > 0 {
+                            (occ as usize).checked_sub(1)
+                        } else if occ < 0 {
+                            all_positions.len().checked_sub((-occ) as usize)
                         } else {
                             None
+                        };
+                        match idx {
+                            Some(i) if i < all_positions.len() => {
+                                Some((all_positions[i], match_len))
+                            }
+                            _ => {
+                                return Err(WErr::with_hint(
+                                    "invalid_occurrence",
+                                    format!(
+                                        "occurrence {occ} out of bounds (found {} matches in {display})",
+                                        all_positions.len()
+                                    ),
+                                    format!(
+                                        "pass occurrence 1..={} or -1..=-{}",
+                                        all_positions.len(),
+                                        all_positions.len()
+                                    ),
+                                ))
+                            }
                         }
+                    } else if let Some(target_line) = a.near_line {
+                        let best = all_positions.iter().min_by_key(|&&p| {
+                            let line = old[..p].matches('\n').count() + 1;
+                            line.abs_diff(target_line)
+                        });
+                        best.map(|&p| (p, match_len))
+                    } else {
+                        let locs: Vec<String> = all_positions
+                            .iter()
+                            .take(5)
+                            .map(|&p| {
+                                let line = old[..p].matches('\n').count() + 1;
+                                let col =
+                                    p - old[..p].rfind('\n').map(|i| i + 1).unwrap_or(0) + 1;
+                                format!("{line}:{col}")
+                            })
+                            .collect();
+                        let n = all_positions.len();
+                        return Err(WErr::with_hint(
+                            "ambiguous_anchor",
+                            format!("{n} matches in {display} at {}", locs.join(", ")),
+                            format!("try: w read path={display} lines=<start>:<end>"),
+                        ));
                     }
+                } else if !fuzzy_matches.is_empty() {
+                    if fuzzy_matches.len() == 1 {
+                        let (start, end) = fuzzy_matches[0];
+                        Some((start, end - start))
+                    } else if let Some(occ) = a.occurrence {
+                        let idx = if occ > 0 {
+                            (occ as usize).checked_sub(1)
+                        } else if occ < 0 {
+                            fuzzy_matches.len().checked_sub((-occ) as usize)
+                        } else {
+                            None
+                        };
+                        match idx {
+                            Some(i) if i < fuzzy_matches.len() => {
+                                let (start, end) = fuzzy_matches[i];
+                                Some((start, end - start))
+                            }
+                            _ => {
+                                return Err(WErr::with_hint(
+                                    "invalid_occurrence",
+                                    format!(
+                                        "occurrence {occ} out of bounds (found {} fuzzy matches)",
+                                        fuzzy_matches.len()
+                                    ),
+                                    format!("pass occurrence 1..={}", fuzzy_matches.len()),
+                                ))
+                            }
+                        }
+                    } else if let Some(target_line) = a.near_line {
+                        let best = fuzzy_matches.iter().min_by_key(|&&(start, _)| {
+                            let line = old[..start].matches('\n').count() + 1;
+                            line.abs_diff(target_line)
+                        });
+                        best.map(|&(start, end)| (start, end - start))
+                    } else {
+                        let locs: Vec<String> = fuzzy_matches
+                            .iter()
+                            .take(5)
+                            .map(|&(start, _)| {
+                                let line = old[..start].matches('\n').count() + 1;
+                                format!("{line}")
+                            })
+                            .collect();
+                        let n = fuzzy_matches.len();
+                        return Err(WErr::with_hint(
+                            "ambiguous_anchor",
+                            format!("{n} fuzzy matches in {display} around lines {}", locs.join(", ")),
+                            "pass occurrence=1, occurrence=-1, or near_line=<line>",
+                        ));
+                    }
+                } else {
+                    None
                 };
                 let (pos, match_len) = match pos_and_len {
                     Some(p) => p,
