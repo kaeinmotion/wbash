@@ -1192,8 +1192,9 @@ impl Tool for EditTool {
                 format!("created {display} ({} bytes)", content.len()),
             );
             r.meta.counts.insert("created".into(), 1);
-            r.meta.notes.push(format!("hash {short}"));
-            post_check(&mut r, ctx, &abs, "", &content)?;
+            if a.expect_hash.is_some() {
+                r.meta.notes.push(format!("hash {short}"));
+            }
             return Ok(r);
         }
 
@@ -1222,6 +1223,16 @@ impl Tool for EditTool {
                     format!("current={old_short}"),
                     "re-read the file before editing",
                 ));
+            }
+        }
+
+        let mut near_line = a.near_line;
+        if near_line.is_none() {
+            if let Some(spec) = &lines {
+                let count = old.lines().count().max(1);
+                if let Ok((start, _)) = parse_line_range_clamped(spec, count) {
+                    near_line = Some(start);
+                }
             }
         }
 
@@ -1316,7 +1327,7 @@ impl Tool for EditTool {
                                 ))
                             }
                         }
-                    } else if let Some(target_line) = a.near_line {
+                    } else if let Some(target_line) = near_line {
                         let best = all_positions.iter().min_by_key(|&&p| {
                             let line = old[..p].matches('\n').count() + 1;
                             line.abs_diff(target_line)
@@ -1368,7 +1379,7 @@ impl Tool for EditTool {
                                 ))
                             }
                         }
-                    } else if let Some(target_line) = a.near_line {
+                    } else if let Some(target_line) = near_line {
                         let best = fuzzy_matches.iter().min_by_key(|&&(start, _)| {
                             let line = old[..start].matches('\n').count() + 1;
                             line.abs_diff(target_line)

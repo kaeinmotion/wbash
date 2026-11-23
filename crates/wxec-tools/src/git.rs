@@ -823,7 +823,8 @@ fn commit(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
         }
     }
     let text = out.combined();
-    if !text.trim().is_empty() {
+    let lines = text.lines().filter(|l| !l.trim().is_empty()).count();
+    if !out.exit.is_success() || lines > 10 {
         let h = ctx.handles.put("git", text.as_bytes(), "text")?;
         r.handle(wxec_core::types::HandleRef {
             id: h.id.clone(),
@@ -832,9 +833,8 @@ fn commit(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
             hash: h.hash.clone(),
         });
         r.must(format!("full: {}", h.id));
-        let lines = text.lines().filter(|l| !l.trim().is_empty()).count();
-        r.meta.counts.insert("output_lines".into(), lines as i64);
     }
+    r.meta.counts.insert("output_lines".into(), lines as i64);
     r.meta.exit = Some(out.exit);
     Ok(r)
 }
@@ -878,14 +878,17 @@ fn push(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
         }
     }
     let text = out.combined();
-    let h = ctx.handles.put("git", text.as_bytes(), "text")?;
-    r.handle(wxec_core::types::HandleRef {
-        id: h.id.clone(),
-        kind: h.kind.clone(),
-        bytes: h.bytes,
-        hash: h.hash.clone(),
-    });
-    r.must(format!("full: {}", h.id));
+    let lines = text.lines().filter(|l| !l.trim().is_empty()).count();
+    if !r.meta.ok || lines > 10 {
+        let h = ctx.handles.put("git", text.as_bytes(), "text")?;
+        r.handle(wxec_core::types::HandleRef {
+            id: h.id.clone(),
+            kind: h.kind.clone(),
+            bytes: h.bytes,
+            hash: h.hash.clone(),
+        });
+        r.must(format!("full: {}", h.id));
+    }
     Ok(r)
 }
 
