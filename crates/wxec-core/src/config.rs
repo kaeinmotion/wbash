@@ -37,12 +37,12 @@ default_mod!(exec_defaults {
 });
 
 default_mod!(read_defaults {
-    head_lines: u32 = 40,
-    max_full_lines: u32 = 400,
+    head_lines: u32 = 30,
+    max_full_lines: u32 = 300,
 });
 
 default_mod!(search_defaults {
-    default_limit: u32 = 50,
+    default_limit: u32 = 20,
     max_limit: u32 = 200,
     context_max: u32 = 20,
 });

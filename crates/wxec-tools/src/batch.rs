@@ -23,6 +23,8 @@ struct BatchArgs {
     calls: Vec<BatchCall>,
     #[serde(default, alias = "fail_fast", alias = "bail_on_error")]
     stop_on_error: bool,
+    #[serde(default, alias = "quiet", alias = "rollup", alias = "summary")]
+    compact: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -71,7 +73,8 @@ impl Tool for BatchTool {
                         "additionalProperties": false
                     }
                 },
-                "stop_on_error": {"type": "boolean"}
+                "stop_on_error": {"type": "boolean"},
+                "compact": {"type": "boolean"}
             },
             "required": ["calls"],
             "additionalProperties": false
@@ -113,8 +116,10 @@ impl Tool for BatchTool {
         let mut result = ToolResult::new("batch", String::new());
         let mut ok_count = 0usize;
         let mut err_count = 0usize;
-
         let mut used_items_tokens = 0u32;
+        let mut total_ins = 0i64;
+        let mut total_del = 0i64;
+        let mut total_passed = 0i64;
         for (i, call) in a.calls.iter().enumerate() {
             let remaining = n.saturating_sub(i) as u32;
             let used = estimator::estimate_text(&result.header).saturating_add(used_items_tokens);
@@ -123,6 +128,15 @@ impl Tool for BatchTool {
             match invoke_tool(ctx.registry, &call.tool, &call.args, ctx) {
                 Ok(child) => {
                     ok_count += 1;
+                    if let Some(&ins) = child.meta.counts.get("inserted") {
+                        total_ins += ins;
+                    }
+                    if let Some(&del) = child.meta.counts.get("deleted") {
+                        total_del += del;
+                    }
+                    if let Some(&p) = child.meta.counts.get("passed") {
+                        total_passed += p;
+                    }
                     let rendered = formatter::render(
                         &child,
                         RenderOptions {
@@ -188,6 +202,22 @@ impl Tool for BatchTool {
         result.meta.counts.insert("ok".into(), ok_count as i64);
         result.meta.counts.insert("error".into(), err_count as i64);
         result.meta.counts.insert("total".into(), n as i64);
+        if a.compact && err_count == 0 {
+            result.items.clear();
+            let mut parts = Vec::new();
+            if total_ins > 0 || total_del > 0 {
+                parts.push(format!("+{total_ins} -{total_del}"));
+            }
+            if total_passed > 0 {
+                parts.push(format!("{total_passed} passed"));
+            }
+            let summary = if parts.is_empty() {
+                format!("{ok_count} actions ok")
+            } else {
+                format!("{ok_count} ok ({})", parts.join(", "))
+            };
+            result.push(Item::new(ItemClass::High, 10.0, vec![summary]));
+        }
         Ok(result)
     }
 }

@@ -703,4 +703,28 @@ fn test_ergonomic_tool_features() {
     assert!(edit_all.ok, "{}", edit_all.text);
     let verify_all = call(&mut d, "read", json!({"path": "duplicate.txt", "lines": "3:3"}));
     assert!(verify_all.text.contains("3: middle_target"));
+
+    // 30. batch with compact: true produces Net Digest rollup
+    let batch_compact = call(
+        &mut d,
+        "batch",
+        json!({
+            "calls": [
+                {"tool": "edit", "args": {"path": "duplicate.txt", "find": "first_target", "replace": "c1"}},
+                {"tool": "edit", "args": {"path": "duplicate.txt", "find": "last_target", "replace": "c2"}}
+            ],
+            "compact": true
+        }),
+    );
+    assert!(batch_compact.ok, "{}", batch_compact.text);
+    assert!(
+        batch_compact.text.contains("2 ok"),
+        "{}",
+        batch_compact.text
+    );
+    assert!(
+        !batch_compact.text.contains("#1 edit ok"),
+        "compact batch should suppress per-step headers: {}",
+        batch_compact.text
+    );
 }

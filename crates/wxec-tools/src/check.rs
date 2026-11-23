@@ -264,13 +264,14 @@ impl Tool for CheckTool {
         if failed > 0 && !header.contains("failed") {
             header.push_str(&format!(", {failed} failed"));
         }
-        if passed > 0 {
-            header.push_str(&format!(", {passed} passed"));
+        if errors == 0 && failed == 0 {
+            if passed > 0 {
+                header.push_str(&format!(", {passed} passed"));
+            }
+            if ignored > 0 {
+                header.push_str(&format!(", {ignored} ignored"));
+            }
         }
-        if ignored > 0 {
-            header.push_str(&format!(", {ignored} ignored"));
-        }
-        result.header = header;
         util::diagnostics_into(&mut result, diagnostics, ctx.root, ctx.handles)?;
         util::tests_into(&mut result, &tests, true);
         result.meta.ok = ok;
