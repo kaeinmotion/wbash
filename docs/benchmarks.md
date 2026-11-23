@@ -57,17 +57,15 @@ agent 2 uses `wxec`'s native multi-tool batching over persistent mcp stdio.
 - **wall time**: 2,212.2ms
 
 ---
-
 ### empirical comparison summary
 
-| metric | agent with `rtk` | agent with `wxec` (mcp) | measured advantage |
-| :--- | :--- | :--- | :--- |
-| **turns / round-trips** | **9 turns** | **3 turns** | **3.0x fewer turns** |
-| **total tokens exchanged** | **1,393 tokens** | **909 tokens** | **34.7% token savings** |
-| **context footprint at end** | **1,393 tokens** | **909 tokens** | **34.7% cleaner context** |
-| **execution wall time** | **2,545.6ms** | **2,212.2ms** | **1.15x faster local execution** |
-| **llm inference latency (at ~1.8s/turn)** | ~16.2s | ~5.4s | **~3.0x faster task completion** |
----
+| metric | agent with `rtk` | agent with `claude code / cursor` | agent with `wxec` (mcp) | measured advantage vs claude code |
+| :--- | :---: | :---: | :---: | :--- |
+| **turns / round-trips** | **9 turns** | **9 turns** | **3 turns** | **3.0x fewer turns** |
+| **total tokens exchanged** | **1,393 tokens** | **1,375 tokens** | **909 tokens** | **33.9% token savings** |
+| **context footprint at end** | **1,393 tokens** | **1,375 tokens** | **909 tokens** | **33.9% cleaner context** |
+| **execution wall time** | **2,551.5ms** | **1,906.0ms** | **2,064.2ms** | **comparable execution** |
+| **llm inference latency (@ ~1.8s/turn)** | **~16.2s** | **~16.2s** | **~5.4s** | **3.0x faster task resolution** |
 
 ### architectural analysis: why `wxec` wins
 

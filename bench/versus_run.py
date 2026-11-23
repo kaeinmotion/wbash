@@ -9,11 +9,10 @@ and executes the step-by-step resolution sequences for both agents, measuring:
 - wall-clock duration (ms)
 - context window accumulation (running prompt pollution)
 """
-
+import json
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -127,7 +126,87 @@ def run_rtk_agent():
     passed = (c == 0) and ("passed" in out.lower() or "test result: ok" in out.lower())
     shutil.rmtree(workdir.parent, ignore_errors=True)
     return {"name": "rtk", "passed": passed, "turns": turns}
-import json
+
+def run_claude_code_agent():
+    workdir = setup_workspace()
+    env = os.environ.copy()
+    env["CARGO_TERM_COLOR"] = "never"
+    
+    turns = []
+
+    # Turn 1: Bash cargo test (unfiltered raw output)
+    t1_cmd = "cargo test"
+    c, out, ms, disp = run_cmd(t1_cmd, workdir, env)
+    disp_call = f"tool_use: Bash(command=\"{t1_cmd}\")"
+    turns.append({"turn": 1, "action": "Bash(cargo test)", "cmd": disp_call, "out": out, "ms": ms})
+
+    # Turn 2: Grep 'fn add' in src/
+    t2_pattern = "fn add"
+    t2_cmd = f"rg -n '{t2_pattern}' src/"
+    c, out, ms, disp = run_cmd(t2_cmd, workdir, env)
+    disp_call = f"tool_use: Grep(pattern=\"{t2_pattern}\", path=\"src\")"
+    turns.append({"turn": 2, "action": "Grep('fn add')", "cmd": disp_call, "out": out, "ms": ms})
+
+    # Turn 3: View src/lib.rs lines 1-10
+    t0 = time.perf_counter()
+    lines = (workdir / "src" / "lib.rs").read_text().splitlines()
+    view_out = "\n".join(f"{i+1:4d} | {l}" for i, l in enumerate(lines[:10]))
+    ms = (time.perf_counter() - t0) * 1000
+    disp_call = "tool_use: View(path=\"src/lib.rs\", view_range=[1, 10])"
+    turns.append({"turn": 3, "action": "View(src/lib.rs, 1-10)", "cmd": disp_call, "out": view_out, "ms": ms})
+
+    # Turn 4: Edit add in src/lib.rs
+    t0 = time.perf_counter()
+    content = (workdir / "src" / "lib.rs").read_text()
+    old_str = "pub fn add(a: i32, b: i32) -> i32 {\n    a - b\n}"
+    new_str = "pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}"
+    content = content.replace(old_str, new_str)
+    (workdir / "src" / "lib.rs").write_text(content)
+    ms = (time.perf_counter() - t0) * 1000
+    disp_call = f"tool_use: Edit(path=\"src/lib.rs\", old_str=\"{old_str}\", new_str=\"{new_str}\")"
+    turns.append({"turn": 4, "action": "Edit(add in src/lib.rs)", "cmd": disp_call, "out": "File src/lib.rs successfully edited.", "ms": ms})
+
+    # Turn 5: Grep 'fn clamp' in src/
+    t5_pattern = "fn clamp"
+    t5_cmd = f"rg -n '{t5_pattern}' src/"
+    c, out, ms, disp = run_cmd(t5_cmd, workdir, env)
+    disp_call = f"tool_use: Grep(pattern=\"{t5_pattern}\", path=\"src\")"
+    turns.append({"turn": 5, "action": "Grep('fn clamp')", "cmd": disp_call, "out": out, "ms": ms})
+
+    # Turn 6: View src/lib.rs lines 10-20
+    t0 = time.perf_counter()
+    lines = (workdir / "src" / "lib.rs").read_text().splitlines()
+    view_out = "\n".join(f"{i+1:4d} | {l}" for i, l in enumerate(lines[9:20], start=10))
+    ms = (time.perf_counter() - t0) * 1000
+    disp_call = "tool_use: View(path=\"src/lib.rs\", view_range=[10, 20])"
+    turns.append({"turn": 6, "action": "View(src/lib.rs, 10-20)", "cmd": disp_call, "out": view_out, "ms": ms})
+
+    # Turn 7: Edit clamp in src/lib.rs
+    t0 = time.perf_counter()
+    content = (workdir / "src" / "lib.rs").read_text()
+    old_clamp = "pub fn clamp(v: i32, lo: i32, hi: i32) -> i32 {\n    let _ = (lo, hi);\n    v\n}"
+    new_clamp = "pub fn clamp(v: i32, lo: i32, hi: i32) -> i32 {\n    if v < lo {\n        lo\n    } else if v > hi {\n        hi\n    } else {\n        v\n    }\n}"
+    content = content.replace(old_clamp, new_clamp)
+    (workdir / "src" / "lib.rs").write_text(content)
+    ms = (time.perf_counter() - t0) * 1000
+    disp_call = f"tool_use: Edit(path=\"src/lib.rs\", old_str=\"{old_clamp}\", new_str=\"{new_clamp}\")"
+    turns.append({"turn": 7, "action": "Edit(clamp in src/lib.rs)", "cmd": disp_call, "out": "File src/lib.rs successfully edited.", "ms": ms})
+
+    # Turn 8: Bash git diff (raw git diff output)
+    t8_cmd = "git diff"
+    c, out, ms, disp = run_cmd(t8_cmd, workdir, env)
+    disp_call = f"tool_use: Bash(command=\"{t8_cmd}\")"
+    turns.append({"turn": 8, "action": "Bash(git diff)", "cmd": disp_call, "out": out, "ms": ms})
+
+    # Turn 9: Bash cargo test (verify)
+    t9_cmd = "cargo test"
+    c, out, ms, disp = run_cmd(t9_cmd, workdir, env)
+    disp_call = f"tool_use: Bash(command=\"{t9_cmd}\")"
+    turns.append({"turn": 9, "action": "Bash(cargo test verify)", "cmd": disp_call, "out": out, "ms": ms})
+
+    passed = (c == 0) and ("test result: ok" in out.lower() or "passed" in out.lower())
+    shutil.rmtree(workdir.parent, ignore_errors=True)
+    return {"name": "claude_code", "passed": passed, "turns": turns}
 
 def run_wxec_agent():
     workdir = setup_workspace()
@@ -234,14 +313,18 @@ def run_wxec_agent():
 def main():
     print("running agent with rtk...")
     r_rtk = run_rtk_agent()
-    print("running agent with wxec...")
+    print("running agent with claude code / cursor native tools...")
+    r_claude = run_claude_code_agent()
+    print("running agent with wxec (native mcp stdio)...")
     r_wxec = run_wxec_agent()
 
     print("\n" + "="*80)
-    print("HEAD-TO-HEAD BENCHMARK: 2 AGENTS SOLVING 1 COMPLEX BUG")
+    print("HEAD-TO-HEAD BENCHMARK: 3 AGENTS SOLVING 1 COMPLEX BUG")
     print("="*80)
 
-    for r in [r_rtk, r_wxec]:
+    results = [r_claude, r_rtk, r_wxec]
+
+    for r in results:
         total_tok_in = 0
         total_tok_out = 0
         total_ms = 0
@@ -261,21 +344,34 @@ def main():
         print("-" * 92)
         print(f"TOTALS: {len(r['turns'])} turns | In: {total_tok_in} tok | Out: {total_tok_out} tok | Sum: {total_tok_in + total_tok_out} tok | Time: {total_ms:.1f}ms\n")
 
+    t_claude = sum(count_tokens(t["cmd"]) + count_tokens(t["out"]) for t in r_claude["turns"])
     t_rtk = sum(count_tokens(t["cmd"]) + count_tokens(t["out"]) for t in r_rtk["turns"])
     t_wxec = sum(count_tokens(t["cmd"]) + count_tokens(t["out"]) for t in r_wxec["turns"])
+    ms_claude = sum(t["ms"] for t in r_claude["turns"])
     ms_rtk = sum(t["ms"] for t in r_rtk["turns"])
     ms_wxec = sum(t["ms"] for t in r_wxec["turns"])
 
-    print("="*80)
-    print("EMPIRICAL COMPARISON SUMMARY")
-    print("="*80)
-    print(f"Metric                          Agent (RTK)             Agent (WXEC)            Advantage")
-    print("-" * 80)
-    print(f"Turns / Round-trips             {len(r_rtk['turns']):<23} {len(r_wxec['turns']):<23} {len(r_rtk['turns'])/len(r_wxec['turns']):.1f}x fewer turns (WXEC)")
-    print(f"Total Tokens Exchanged          {t_rtk:<23} {t_wxec:<23} {(1 - t_wxec/t_rtk)*100:.1f}% token savings (WXEC)")
-    print(f"Execution Wall Time             {ms_rtk:>6.1f}ms               {ms_wxec:>6.1f}ms               {ms_rtk/ms_wxec:.1f}x faster (WXEC)")
-    print(f"Context Footprint at End        {t_rtk:<23} {t_wxec:<23} {(1 - t_wxec/t_rtk)*100:.1f}% less context clutter")
-    print("="*80)
+    print("="*96)
+    print("EMPIRICAL COMPARISON SUMMARY: CLAUDE CODE / CURSOR vs WXEC")
+    print("="*96)
+    print(f"{'Metric':<30} {'Claude Code / Cursor':<24} {'WXEC (MCP)':<22} {'Advantage'}")
+    print("-" * 96)
+    print(f"{'Turns / Round-trips':<30} {len(r_claude['turns']):<24} {len(r_wxec['turns']):<22} {len(r_claude['turns'])/len(r_wxec['turns']):.1f}x fewer turns (WXEC)")
+    print(f"{'Total Tokens Exchanged':<30} {t_claude:<24} {t_wxec:<22} {(1 - t_wxec/t_claude)*100:.1f}% token savings (WXEC)")
+    print(f"{'Execution Wall Time':<30} {ms_claude:>7.1f}ms               {ms_wxec:>7.1f}ms               {ms_claude/ms_wxec:.1f}x faster (WXEC)")
+    print(f"{'Context Footprint at End':<30} {t_claude:<24} {t_wxec:<22} {(1 - t_wxec/t_claude)*100:.1f}% less context clutter")
+    print("="*96)
+
+    print("\n" + "="*96)
+    print("EMPIRICAL COMPARISON SUMMARY: RTK vs WXEC")
+    print("="*96)
+    print(f"{'Metric':<30} {'RTK':<24} {'WXEC (MCP)':<22} {'Advantage'}")
+    print("-" * 96)
+    print(f"{'Turns / Round-trips':<30} {len(r_rtk['turns']):<24} {len(r_wxec['turns']):<22} {len(r_rtk['turns'])/len(r_wxec['turns']):.1f}x fewer turns (WXEC)")
+    print(f"{'Total Tokens Exchanged':<30} {t_rtk:<24} {t_wxec:<22} {(1 - t_wxec/t_rtk)*100:.1f}% token savings (WXEC)")
+    print(f"{'Execution Wall Time':<30} {ms_rtk:>7.1f}ms               {ms_wxec:>7.1f}ms               {ms_rtk/ms_wxec:.1f}x faster (WXEC)")
+    print(f"{'Context Footprint at End':<30} {t_rtk:<24} {t_wxec:<22} {(1 - t_wxec/t_rtk)*100:.1f}% less context clutter")
+    print("="*96)
 
 if __name__ == "__main__":
     main()

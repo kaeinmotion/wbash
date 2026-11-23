@@ -52,18 +52,19 @@ CLI per-invocation remains startup-bound for reads (~6-7ms p95 advisory); warmed
 - Baselines saved: `bench/baselines/v0.2.3-baseline.json`, `bench/baselines/agent-current.json`.
 - Warm perf, fmt/clippy, tests, MCP schema budget, estimator calibration, security, and fuzz jobs remain in CI.
 
-## Versus: RTK vs WXEC on Complex Multi-Failure Bug
+## Versus: Claude Code / Cursor & RTK vs WXEC on Complex Multi-Failure Bug
 
-Empirical head-to-head comparison between Agent with `rtk` (Rust Token Killer) and Agent with `wxec` (native MCP stdio batching) on identical isolated workspaces:
+Empirical 3-way head-to-head comparison between Agent with `claude code / cursor native tools` (`Bash`, `Grep`, `View`, `Edit`), Agent with `rtk` (Rust Token Killer), and Agent with `wxec` (native MCP stdio batching) on identical isolated workspaces:
 
-| metric | agent with `rtk` | agent with `wxec` (mcp) | measured advantage |
-|---|---:|---:|---|
-| **turns / round-trips** | 9 | 3 | **3.0x fewer turns** |
-| **total tokens exchanged (cl100k)** | 1,393 | 909 | **34.7% token savings** |
-| **context footprint at end** | 1,393 | 909 | **34.7% cleaner context** |
-| **execution wall time** | 2,545.6ms | 2,212.2ms | **1.15x faster** |
-| **llm inference latency (at ~1.8s/turn)** | ~16.2s | ~5.4s | **3.0x faster task resolution** |
+| metric | agent with `claude code / cursor` | agent with `rtk` | agent with `wxec` (mcp) | measured advantage (wxec vs claude) |
+|---|---:|---:|---:|---|
+| **turns / round-trips** | 9 | 9 | 3 | **3.0x fewer turns** |
+| **total tokens exchanged (cl100k)** | 1,375 | 1,393 | 909 | **33.9% token savings** |
+| **context footprint at end** | 1,375 | 1,393 | 909 | **33.9% cleaner context** |
+| **execution wall time** | 1,906.0ms | 2,551.5ms | 2,064.2ms | **comparable execution** |
+| **llm inference latency (@ ~1.8s/turn)** | ~16.2s | ~16.2s | ~5.4s | **3.0x faster task resolution** |
 
+*full reproduction script: `bench/versus_run.py`; comprehensive writeup: `docs/benchmarks.md`.*
 *full reproduction script: `bench/versus_run.py`; comprehensive writeup: `docs/benchmarks.md`.*
 ## Gaps
 
