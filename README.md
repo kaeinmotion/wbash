@@ -5,7 +5,7 @@
 [![license: mit](https://img.shields.io/badge/license-mit-yellow.svg)](https://opensource.org/licenses/MIT)
 [![model context protocol](https://img.shields.io/badge/mcp-compatible-green.svg)](https://modelcontextprotocol.io)
 
-ultra-low-token Model Context Protocol (MCP) execution engine for AI coding agents. routes agent operations through structured primitives, session hash ledgers, and atomic memory handles (`~id`) to eliminate prompt bloat and shell noise.
+ultra-low-token model context protocol (MCP) execution engine for AI coding agents. routes agent operations through structured primitives, session hash ledgers, and atomic memory handles (`~id`) to eliminate prompt bloat and shell noise.
 
 ---
 
