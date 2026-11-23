@@ -132,7 +132,19 @@ impl Dispatcher {
         };
         let (common, tool_args) = strip_common(args.clone(), tool)?;
         self.ensure_session(session_id)?;
-        let budget = common.budget.unwrap_or_else(|| default_budget(tool));
+        let budget = common.budget.unwrap_or_else(|| {
+            if tool == "search" {
+                let limit_num = tool_args.get("limit").and_then(|v| match v {
+                    Value::Number(n) => n.as_u64(),
+                    Value::String(s) => s.parse::<u64>().ok(),
+                    _ => None,
+                });
+                if let Some(limit) = limit_num {
+                    return (limit as u32 * 32).clamp(default_budget(tool), 16_000);
+                }
+            }
+            default_budget(tool)
+        });
         let key = session_id.to_string();
 
         let result = {

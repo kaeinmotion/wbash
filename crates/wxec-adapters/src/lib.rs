@@ -116,10 +116,6 @@ pub fn serve_stdio(
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
-    let initial_exe_mtime = std::env::current_exe()
-        .ok()
-        .and_then(|p| std::fs::metadata(p).ok())
-        .and_then(|m| m.modified().ok());
     for line in stdin.lock().lines() {
         let line = match line {
             Ok(l) => l,
@@ -148,21 +144,6 @@ pub fn serve_stdio(
         if let Some(resp) = server.handle(&msg) {
             writeln!(out, "{resp}").map_err(|e| WErr::internal(format!("stdout: {e}")))?;
             out.flush().ok();
-        }
-        #[cfg(unix)]
-        if let Some(init_mtime) = initial_exe_mtime {
-            if let Ok(exe) = std::env::current_exe() {
-                if let Ok(meta) = std::fs::metadata(&exe) {
-                    if let Ok(cur_mtime) = meta.modified() {
-                        if cur_mtime > init_mtime {
-                            use std::os::unix::process::CommandExt;
-                            let _ = std::process::Command::new(exe)
-                                .args(std::env::args_os().skip(1))
-                                .exec();
-                        }
-                    }
-                }
-            }
         }
     }
     Ok(())

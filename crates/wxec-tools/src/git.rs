@@ -68,6 +68,8 @@ struct GitArgs {
     #[serde(default)]
     rebase: bool,
     #[serde(default)]
+    dates: bool,
+    #[serde(default)]
     args: Option<Vec<String>>,
 }
 
@@ -101,6 +103,7 @@ impl Tool for GitTool {
                 "remote": {"type": "string"},
                 "branch": {"type": "string"},
                 "set_upstream": {"type": "boolean"},
+                "dates": {"type": "boolean"},
                 "args": {"type": "array", "items": {"type": "string"}}
             },
             "required": ["op"],
@@ -184,6 +187,17 @@ fn git(ctx: &ToolContext<'_>, args: &[&str]) -> Result<wxec_core::executor::Exec
 }
 
 fn ensure_repo(ctx: &ToolContext<'_>) -> Result<()> {
+    // Fast path: stat check for .git directory/file in root or ancestors
+    let mut cur = ctx.root;
+    loop {
+        if cur.join(".git").exists() {
+            return Ok(());
+        }
+        match cur.parent() {
+            Some(p) => cur = p,
+            None => break,
+        }
+    }
     let out = git(ctx, &["rev-parse", "--git-dir"])?;
     if !out.exit.is_success() {
         return Err(WErr::with_hint(
@@ -466,11 +480,16 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
 fn log(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
     let limit = a.limit.unwrap_or(20).clamp(1, 500);
     let limit_s = format!("-n{limit}");
+    let fmt = if a.dates {
+        "--pretty=format:%h %ad %s"
+    } else {
+        "--pretty=format:%h %s"
+    };
     let mut args: Vec<String> = vec![
         "log".to_string(),
         "--no-color".to_string(),
         "--date=short".to_string(),
-        "--pretty=format:%h%x09%ad%x09%s".to_string(),
+        fmt.to_string(),
         limit_s,
     ];
     if let Some(r) = &a.reference {

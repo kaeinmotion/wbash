@@ -181,22 +181,31 @@ fn render_tree(
 ) -> Result<()> {
     let indent = "  ".repeat(level);
     for (name, child) in &node.dirs {
-        let count = child.file_count();
+        let mut disp_name = name.clone();
+        let mut curr_child = child;
+        while curr_child.dirs.len() == 1 && curr_child.files.is_empty() {
+            let (next_name, next_child) = curr_child.dirs.iter().next().unwrap();
+            disp_name = format!("{disp_name}/{next_name}");
+            curr_child = next_child;
+        }
+
+        let count = curr_child.file_count();
         let over_depth = level + 1 >= max_depth;
-        let small_leaf = child.dirs.is_empty() && child.files.len() <= 5;
-        let collapse =
-            (over_depth && !small_leaf) || child.files.len() > 40 || child.dir_count() > 40;
+        let small_leaf = curr_child.dirs.is_empty() && curr_child.files.len() <= 5;
+        let collapse = (over_depth && !small_leaf)
+            || curr_child.files.len() > 40
+            || curr_child.dir_count() > 40;
         if collapse {
             let mut lines = Vec::new();
-            collect_tree_lines(child, &format!("{indent}  "), sizes, &mut lines);
+            collect_tree_lines(curr_child, &format!("{indent}  "), sizes, &mut lines);
             let show_handle = ctx.config.output.verbosity == "verbose" || count > 50;
             if !show_handle || lines.is_empty() {
-                result.must(format!("{indent}{name}/ ({count})"));
+                result.must(format!("{indent}{disp_name}/ ({count})"));
             } else {
                 let h = ctx
                     .handles
                     .put("tree", lines.join("\n").as_bytes(), "text")?;
-                result.must(format!("{indent}{name}/ ({count}) {}", h.id));
+                result.must(format!("{indent}{disp_name}/ ({count}) {}", h.id));
                 result.handle(HandleRef {
                     id: h.id.clone(),
                     kind: h.kind.clone(),
@@ -208,9 +217,17 @@ fn render_tree(
             result.push(Item::new(
                 ItemClass::High,
                 5.0,
-                vec![format!("{indent}{name}/")],
+                vec![format!("{indent}{disp_name}/")],
             ));
-            render_tree(result, child, level + 1, max_depth, sizes, dirs_only, ctx)?;
+            render_tree(
+                result,
+                curr_child,
+                level + 1,
+                max_depth,
+                sizes,
+                dirs_only,
+                ctx,
+            )?;
         }
     }
     if dirs_only {
@@ -264,8 +281,18 @@ fn render_tree(
 
 fn collect_tree_lines(node: &DirNode, indent: &str, sizes: bool, out: &mut Vec<String>) {
     for (name, child) in &node.dirs {
-        out.push(format!("{indent}{name}/ ({})", child.file_count()));
-        collect_tree_lines(child, &format!("{indent}  "), sizes, out);
+        let mut disp_name = name.clone();
+        let mut curr_child = child;
+        while curr_child.dirs.len() == 1 && curr_child.files.is_empty() {
+            let (next_name, next_child) = curr_child.dirs.iter().next().unwrap();
+            disp_name = format!("{disp_name}/{next_name}");
+            curr_child = next_child;
+        }
+        out.push(format!(
+            "{indent}{disp_name}/ ({})",
+            curr_child.file_count()
+        ));
+        collect_tree_lines(curr_child, &format!("{indent}  "), sizes, out);
     }
     let mut files = node.files.clone();
     files.sort_unstable_by(|a, b| a.0.cmp(&b.0));

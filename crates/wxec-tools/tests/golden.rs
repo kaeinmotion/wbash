@@ -153,8 +153,8 @@ fn normalize_ms(text: &str) -> String {
     re.replace(text, ", <dur>").to_string()
 }
 fn normalize_git(text: &str) -> String {
-    let re = regex::Regex::new(r"(?m)^[0-9a-f]{7,40} \d{4}-\d{2}-\d{2} ").unwrap();
-    re.replace_all(text, "<hash> <date> ").to_string()
+    let re = regex::Regex::new(r"(?m)^[0-9a-f]{7,40} ").unwrap();
+    re.replace_all(text, "<hash> ").to_string()
 }
 
 #[test]
