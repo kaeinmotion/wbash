@@ -20,20 +20,39 @@ impl Features {
             non_ascii: 0,
         };
         let mut in_word = false;
-        for ch in text.chars() {
-            let word = ch.is_alphanumeric() || ch == '_';
-            if word && !in_word {
-                f.words += 1;
-            }
-            in_word = word;
-            if !word && !ch.is_whitespace() {
-                f.punct += 1;
-            }
-            if ch.is_uppercase() {
-                f.upper += 1;
-            }
-            if !ch.is_ascii() {
+        let bytes = text.as_bytes();
+        let mut i = 0;
+        let len = bytes.len();
+        while i < len {
+            let b = bytes[i];
+            if b < 128 {
+                let word = b.is_ascii_alphanumeric() || b == b'_';
+                if word && !in_word {
+                    f.words += 1;
+                }
+                in_word = word;
+                if !word && !b.is_ascii_whitespace() {
+                    f.punct += 1;
+                }
+                if b.is_ascii_uppercase() {
+                    f.upper += 1;
+                }
+                i += 1;
+            } else {
+                let ch = text[i..].chars().next().unwrap_or('\0');
+                let word = ch.is_alphanumeric() || ch == '_';
+                if word && !in_word {
+                    f.words += 1;
+                }
+                in_word = word;
+                if !word && !ch.is_whitespace() {
+                    f.punct += 1;
+                }
+                if ch.is_uppercase() {
+                    f.upper += 1;
+                }
                 f.non_ascii += 1;
+                i += ch.len_utf8();
             }
         }
         f
@@ -67,20 +86,39 @@ pub fn estimate_lines(lines: &[String]) -> u32 {
     };
     for line in lines {
         let mut in_word = false;
-        for ch in line.chars() {
-            let word = ch.is_alphanumeric() || ch == '_';
-            if word && !in_word {
-                f.words += 1;
-            }
-            in_word = word;
-            if !word && !ch.is_whitespace() {
-                f.punct += 1;
-            }
-            if ch.is_uppercase() {
-                f.upper += 1;
-            }
-            if !ch.is_ascii() {
+        let bytes = line.as_bytes();
+        let mut i = 0;
+        let len = bytes.len();
+        while i < len {
+            let b = bytes[i];
+            if b < 128 {
+                let word = b.is_ascii_alphanumeric() || b == b'_';
+                if word && !in_word {
+                    f.words += 1;
+                }
+                in_word = word;
+                if !word && !b.is_ascii_whitespace() {
+                    f.punct += 1;
+                }
+                if b.is_ascii_uppercase() {
+                    f.upper += 1;
+                }
+                i += 1;
+            } else {
+                let ch = line[i..].chars().next().unwrap_or('\0');
+                let word = ch.is_alphanumeric() || ch == '_';
+                if word && !in_word {
+                    f.words += 1;
+                }
+                in_word = word;
+                if !word && !ch.is_whitespace() {
+                    f.punct += 1;
+                }
+                if ch.is_uppercase() {
+                    f.upper += 1;
+                }
                 f.non_ascii += 1;
+                i += ch.len_utf8();
             }
         }
     }

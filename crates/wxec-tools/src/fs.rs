@@ -195,7 +195,25 @@ fn render_tree(
         let collapse = (over_depth && !small_leaf)
             || curr_child.files.len() > 40
             || curr_child.dir_count() > 40;
-        if collapse {
+        if over_depth && small_leaf && !dirs_only && !curr_child.files.is_empty() {
+            let mut sorted = curr_child.files.clone();
+            sorted.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+            let list: Vec<String> = sorted
+                .iter()
+                .map(|(n, s)| {
+                    if sizes {
+                        format!("{n} ({})", human_size(*s))
+                    } else {
+                        n.clone()
+                    }
+                })
+                .collect();
+            result.push(Item::new(
+                ItemClass::High,
+                5.0,
+                vec![format!("{indent}{disp_name}/: {}", list.join(", "))],
+            ));
+        } else if collapse {
             let mut lines = Vec::new();
             collect_tree_lines(curr_child, &format!("{indent}  "), sizes, &mut lines);
             let show_handle = ctx.config.output.verbosity == "verbose" || count > 50;
@@ -644,6 +662,16 @@ impl Tool for ReadTool {
             } else {
                 format!("{start}-{end}")
             };
+            if let Some(exp) = &a.expect_hash {
+                if !a.force && (exp == &short || exp == &full_hex) {
+                    let mut r = ToolResult::new(
+                        "read",
+                        format!("unchanged {display}:{range_str} ({short})"),
+                    );
+                    r.meta.counts.insert("lines".into(), count as i64);
+                    return Ok(r);
+                }
+            }
             let count_str = util::plural(count, "line");
             let header = if a.expect_hash.is_some() {
                 format!("{display}:{range_str} ({count_str}, {short})")

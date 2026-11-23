@@ -567,7 +567,7 @@ fn scan_symbol(
                 let line_text = s.line_text.trim();
                 let kind_lc = s.kind.to_ascii_lowercase();
                 let lt_lc = line_text.to_ascii_lowercase();
-                let snippet = if lt_lc.starts_with(&format!("{kind_lc} "))
+                let raw_snippet = if lt_lc.starts_with(&format!("{kind_lc} "))
                     || lt_lc.starts_with(&format!("pub {kind_lc} "))
                     || lt_lc.starts_with(&format!("export {kind_lc} "))
                     || lt_lc.starts_with(&format!("async {kind_lc} "))
@@ -575,6 +575,11 @@ fn scan_symbol(
                     line_text.to_string()
                 } else {
                     format!("{} {}", s.kind, line_text)
+                };
+                let snippet = if raw_snippet.len() <= 240 {
+                    raw_snippet
+                } else {
+                    raw_snippet.chars().take(240).collect::<String>()
                 };
                 hits.push(Hit {
                     path: f.rel.clone(),
