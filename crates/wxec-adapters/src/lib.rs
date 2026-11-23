@@ -92,6 +92,10 @@ impl McpServer {
             .and_then(|m| m.get("session_id"))
             .or_else(|| params.get("session_id"))
             .or_else(|| params.get("session"))
+            .or_else(|| {
+                args.as_object()
+                    .and_then(|o| o.get("session_id").or_else(|| o.get("session")))
+            })
             .and_then(Value::as_str)
             .unwrap_or("default");
         let rendered = self.dispatcher.call(&name, &args, session);
@@ -102,7 +106,6 @@ impl McpServer {
         }))
     }
 }
-
 pub fn serve_stdio(
     root: &Path,
     config_path: Option<&Path>,

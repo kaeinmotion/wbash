@@ -1027,58 +1027,18 @@ impl Tool for EditTool {
         }
         let abs = ctx.resolve(&path_str, false)?;
         let display = ctx.rel(&abs);
-
-        let mut find = a.find.clone();
-        if let Some(f) = find.as_deref() {
-            if f == "-" {
-                let mut s = String::new();
-                std::io::stdin()
-                    .read_to_string(&mut s)
-                    .map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
-                find = Some(s);
-            } else if let Some(path) = f.strip_prefix('@') {
-                let p = ctx.resolve(path, true)?;
-                find = Some(
-                    std::fs::read_to_string(&p)
-                        .map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?,
-                );
-            }
-        }
-
-        let mut replace = a.replace.clone();
-        if let Some(r) = replace.as_deref() {
-            if r == "-" {
-                let mut s = String::new();
-                std::io::stdin()
-                    .read_to_string(&mut s)
-                    .map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
-                replace = Some(s);
-            } else if let Some(path) = r.strip_prefix('@') {
-                let p = ctx.resolve(path, true)?;
-                replace = Some(
-                    std::fs::read_to_string(&p)
-                        .map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?,
-                );
-            }
-        }
-
-        let mut content = a.content.clone();
-        if let Some(c) = content.as_deref() {
-            if c == "-" {
-                let mut s = String::new();
-                std::io::stdin()
-                    .read_to_string(&mut s)
-                    .map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
-                content = Some(s);
-            } else if let Some(path) = c.strip_prefix('@') {
-                let p = ctx.resolve(path, true)?;
-                content = Some(
-                    std::fs::read_to_string(&p)
-                        .map_err(|e| WErr::new("io_error", format!("read @{path}: {e}")))?,
-                );
-            }
-        }
-
+        let find = match a.find.as_deref() {
+            Some(f) => Some(resolve_content_or_handle(ctx, f)?),
+            None => None,
+        };
+        let mut replace = match a.replace.as_deref() {
+            Some(r) => Some(resolve_content_or_handle(ctx, r)?),
+            None => None,
+        };
+        let content = match a.content.as_deref() {
+            Some(c) => Some(resolve_content_or_handle(ctx, c)?),
+            None => None,
+        };
         if lines.is_none() && (a.start_line.is_some() || a.end_line.is_some()) {
             let s = a.start_line.unwrap_or(1);
             let e = a.end_line.map(|v| v.to_string()).unwrap_or_default();
@@ -1562,7 +1522,27 @@ fn post_check(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
+fn resolve_content_or_handle(ctx: &mut ToolContext<'_>, val: &str) -> Result<String> {
+    if val == "-" {
+        let mut s = String::new();
+        std::io::stdin()
+            .read_to_string(&mut s)
+            .map_err(|e| WErr::new("io_error", format!("read stdin: {e}")))?;
+        return Ok(s);
+    }
+    if let Some(target) = val.strip_prefix('@') {
+        let clean = target.trim_start_matches('~');
+        let hid = format!("~{clean}");
+        if let Ok((bytes, _)) = ctx.handles.get(&hid) {
+            return Ok(String::from_utf8_lossy(&bytes).into_owned());
+        }
+        let p = ctx.resolve(target, true)?;
+        let content = std::fs::read_to_string(&p)
+            .map_err(|e| WErr::new("io_error", format!("read @{target}: {e}")))?;
+        return Ok(content);
+    }
+    Ok(val.to_string())
+}
 // expand
 // ---------------------------------------------------------------------------
 
@@ -1592,7 +1572,6 @@ struct ExpandArgs {
     #[serde(default)]
     depth: u32,
 }
-
 impl Tool for ExpandTool {
     fn name(&self) -> &'static str {
         "expand"

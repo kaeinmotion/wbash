@@ -656,4 +656,18 @@ fn test_ergonomic_tool_features() {
         }),
     );
     assert!(batch_null.ok, "{}", batch_null.text);
+
+    // 28. edit with handle resolution (@~id) for content, find, and replace
+    let read_big = call(&mut d, "read", json!({"path": "big.txt", "budget": 64}));
+    let hid = handle_id(&read_big.text);
+    assert!(hid.starts_with('~'));
+    let edit_handle_content = call(
+        &mut d,
+        "edit",
+        json!({"path": "handle_paste.txt", "content": format!("@{hid}")}),
+    );
+    assert!(edit_handle_content.ok, "{}", edit_handle_content.text);
+    let verify_paste = call(&mut d, "read", json!({"path": "handle_paste.txt"}));
+    assert!(verify_paste.ok, "{}", verify_paste.text);
+    assert!(verify_paste.text.contains("line 11"));
 }
