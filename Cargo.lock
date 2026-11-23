@@ -601,7 +601,7 @@ dependencies = [
 
 [[package]]
 name = "wxec-adapters"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "serde",
  "serde_json",
@@ -613,7 +613,7 @@ dependencies = [
 
 [[package]]
 name = "wxec-cli"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "serde",
  "serde_json",
@@ -628,7 +628,7 @@ dependencies = [
 
 [[package]]
 name = "wxec-core"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "blake3",
  "libc",
@@ -642,7 +642,7 @@ dependencies = [
 
 [[package]]
 name = "wxec-index"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "ignore",
  "serde",
@@ -656,7 +656,7 @@ dependencies = [
 
 [[package]]
 name = "wxec-parsers"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "regex",
  "serde",
@@ -667,7 +667,7 @@ dependencies = [
 
 [[package]]
 name = "wxec-tools"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "globset",
  "regex",
