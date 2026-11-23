@@ -52,6 +52,19 @@ CLI per-invocation remains startup-bound for reads (~6-7ms p95 advisory); warmed
 - Baselines saved: `bench/baselines/v0.2.3-baseline.json`, `bench/baselines/agent-current.json`.
 - Warm perf, fmt/clippy, tests, MCP schema budget, estimator calibration, security, and fuzz jobs remain in CI.
 
+## Versus: RTK vs WXEC on Complex Multi-Failure Bug
+
+Empirical head-to-head comparison between Agent with `rtk` (Rust Token Killer) and Agent with `wxec` on identical isolated workspaces:
+
+| metric | agent with `rtk` | agent with `wxec` | measured advantage |
+|---|---:|---:|---|
+| **turns / round-trips** | 9 | 3 | **3.0x fewer turns** |
+| **total tokens exchanged (cl100k)** | 1,391 | 748 | **46.2% token savings** |
+| **context footprint at end** | 1,391 | 748 | **46.2% cleaner context** |
+| **execution wall time** | 2,447.8ms | 1,786.0ms | **1.37x faster** |
+
+*full reproduction script: `bench/versus_run.py`; comprehensive writeup: `docs/benchmarks.md`.*
+
 ## Gaps
 
 - Agent benchmarks are scripted multi-step fixture tasks, not live model E2E turn/retry measurements.
