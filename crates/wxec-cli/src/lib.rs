@@ -1466,7 +1466,10 @@ pub fn run_mcp(argv: Vec<String>) -> i32 {
         }
     };
     if tool.is_some() {
-        if std::env::var("WXEC_ALLOW_CLI").map(|v| v == "1").unwrap_or(false) {
+        if std::env::var("WXEC_ALLOW_CLI")
+            .map(|v| v == "1")
+            .unwrap_or(false)
+        {
             return run(argv);
         }
         eprintln!("error: cli mode is disabled to protect token budget. wxec operates strictly as an mcp server over stdio.");
