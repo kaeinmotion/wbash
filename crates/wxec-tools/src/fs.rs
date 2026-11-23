@@ -481,56 +481,66 @@ impl Tool for ReadTool {
             .unwrap_or(0);
 
         if let Some(sym) = &a.symbol {
-            let found = ctx.symbols.find_symbol(&abs, &text, sym).or_else(|| {
-                let bare_sym = sym.rsplit_once("::").map(|(_, b)| b).unwrap_or(sym);
-                let bare_sym = bare_sym.rsplit_once('.').map(|(_, b)| b).unwrap_or(bare_sym);
-                let pat = format!(r"\b(fn|def|function|class|struct|enum|type|const|let|var)\s+{}\b", regex::escape(bare_sym));
-                if let Ok(re) = regex::Regex::new(&pat) {
-                    for (idx, line) in lines.iter().enumerate() {
-                        if re.is_match(line) {
-                            let start_line = idx + 1;
-                            let mut end_line = (start_line + 30).min(line_count);
-                            let mut depth = 0i32;
-                            let mut started = false;
-                            for (j, l) in lines[idx..].iter().enumerate() {
-                                let cur = idx + j + 1;
-                                for c in l.chars() {
-                                    if c == '{' {
-                                        depth += 1;
-                                        started = true;
-                                    } else if c == '}' {
-                                        depth -= 1;
+            let found = ctx
+                .symbols
+                .find_symbol(&abs, &text, sym)
+                .or_else(|| {
+                    let bare_sym = sym.rsplit_once("::").map(|(_, b)| b).unwrap_or(sym);
+                    let bare_sym = bare_sym
+                        .rsplit_once('.')
+                        .map(|(_, b)| b)
+                        .unwrap_or(bare_sym);
+                    let pat = format!(
+                        r"\b(fn|def|function|class|struct|enum|type|const|let|var)\s+{}\b",
+                        regex::escape(bare_sym)
+                    );
+                    if let Ok(re) = regex::Regex::new(&pat) {
+                        for (idx, line) in lines.iter().enumerate() {
+                            if re.is_match(line) {
+                                let start_line = idx + 1;
+                                let mut end_line = (start_line + 30).min(line_count);
+                                let mut depth = 0i32;
+                                let mut started = false;
+                                for (j, l) in lines[idx..].iter().enumerate() {
+                                    let cur = idx + j + 1;
+                                    for c in l.chars() {
+                                        if c == '{' {
+                                            depth += 1;
+                                            started = true;
+                                        } else if c == '}' {
+                                            depth -= 1;
+                                        }
+                                    }
+                                    if started && depth <= 0 {
+                                        end_line = cur;
+                                        break;
+                                    }
+                                    if j > 60 {
+                                        end_line = cur;
+                                        break;
                                     }
                                 }
-                                if started && depth <= 0 {
-                                    end_line = cur;
-                                    break;
-                                }
-                                if j > 60 {
-                                    end_line = cur;
-                                    break;
-                                }
+                                return Some(wxec_index::Symbol {
+                                    name: bare_sym.to_string(),
+                                    kind: "heuristic".to_string(),
+                                    start_line,
+                                    end_line,
+                                    indent: 0,
+                                    line_text: line.to_string(),
+                                    doc: None,
+                                });
                             }
-                            return Some(wxec_index::Symbol {
-                                name: bare_sym.to_string(),
-                                kind: "heuristic".to_string(),
-                                start_line,
-                                end_line,
-                                indent: 0,
-                                line_text: line.to_string(),
-                                doc: None,
-                            });
                         }
                     }
-                }
-                None
-            }).ok_or_else(|| {
-                WErr::with_hint(
-                    "symbol_not_found",
-                    format!("symbol '{sym}' in {display}"),
-                    format!("try: w search pattern={sym} mode=symbol"),
-                )
-            })?;
+                    None
+                })
+                .ok_or_else(|| {
+                    WErr::with_hint(
+                        "symbol_not_found",
+                        format!("symbol '{sym}' in {display}"),
+                        format!("try: w search pattern={sym} mode=symbol"),
+                    )
+                })?;
             let start = found.start_line.max(1).min(line_count.max(1));
             let end = found.end_line.max(start).min(line_count.max(1));
             let mut r = ToolResult::new(
@@ -608,7 +618,9 @@ impl Tool for ReadTool {
                 format!("{display}:{range_str} ({count_str})")
             };
             let mut r = ToolResult::new("read", header);
-            if ctx.config.output.verbosity == "verbose" && spec_mismatch(spec, start, end, line_count) {
+            if ctx.config.output.verbosity == "verbose"
+                && spec_mismatch(spec, start, end, line_count)
+            {
                 r.note(format!("clamped {spec} -> {start}:{end}"));
             }
             let mut raw = String::new();
@@ -1243,7 +1255,9 @@ impl Tool for EditTool {
             );
             r.meta.counts.insert("created".into(), 1);
             r.meta.strings.insert("hash".into(), short.clone());
-            r.meta.strings.insert("full_hash".into(), hash::hash_bytes(content.as_bytes()));
+            r.meta
+                .strings
+                .insert("full_hash".into(), hash::hash_bytes(content.as_bytes()));
             if a.expect_hash.is_some() {
                 r.meta.notes.push(format!("hash {short}"));
             }
@@ -1391,8 +1405,7 @@ impl Tool for EditTool {
                             .take(5)
                             .map(|&p| {
                                 let line = old[..p].matches('\n').count() + 1;
-                                let col =
-                                    p - old[..p].rfind('\n').map(|i| i + 1).unwrap_or(0) + 1;
+                                let col = p - old[..p].rfind('\n').map(|i| i + 1).unwrap_or(0) + 1;
                                 format!("{line}:{col}")
                             })
                             .collect();
@@ -1449,7 +1462,10 @@ impl Tool for EditTool {
                         let n = fuzzy_matches.len();
                         return Err(WErr::with_hint(
                             "ambiguous_anchor",
-                            format!("{n} fuzzy matches in {display} around lines {}", locs.join(", ")),
+                            format!(
+                                "{n} fuzzy matches in {display} around lines {}",
+                                locs.join(", ")
+                            ),
                             "pass occurrence=1, occurrence=-1, or near_line=<line>",
                         ));
                     }
@@ -1646,7 +1662,10 @@ fn post_check(
         });
     }
     if introduced.len() > max_diag {
-        r.note(format!("...+{} syntax errors elided", introduced.len() - max_diag));
+        r.note(format!(
+            "...+{} syntax errors elided",
+            introduced.len() - max_diag
+        ));
     }
     let mut lines = Vec::new();
     let mut all_err_lines = Vec::new();

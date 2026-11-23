@@ -187,8 +187,8 @@ impl Tool for BatchTool {
                                 .saturating_add(estimator::estimate_text(&combined));
                             result.push(Item::new(ItemClass::High, 5.0, vec![combined]));
                         } else {
-                            used_items_tokens = used_items_tokens
-                                .saturating_add(estimator::estimate_text(&header));
+                            used_items_tokens =
+                                used_items_tokens.saturating_add(estimator::estimate_text(&header));
                             used_items_tokens = used_items_tokens
                                 .saturating_add(estimator::estimate_text(&rendered.text));
                             result.push(Item::new(ItemClass::High, 5.0, vec![header]));
@@ -238,9 +238,10 @@ impl Tool for BatchTool {
         result.meta.counts.insert("ok".into(), ok_count as i64);
         result.meta.counts.insert("error".into(), err_count as i64);
         result.meta.counts.insert("total".into(), n as i64);
-        let only_actions = a.calls.iter().all(|c| {
-            matches!(c.tool.as_str(), "edit" | "check" | "git" | "replace")
-        });
+        let only_actions = a
+            .calls
+            .iter()
+            .all(|c| matches!(c.tool.as_str(), "edit" | "check" | "git" | "replace"));
         if (a.compact || only_actions) && err_count == 0 {
             result.items.clear();
             let mut parts = Vec::new();

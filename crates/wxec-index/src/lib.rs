@@ -845,7 +845,10 @@ impl SymbolIndex {
 
     pub fn find_symbol(&self, path: &Path, source: &str, name: &str) -> Option<Symbol> {
         let bare_name = name.rsplit_once("::").map(|(_, b)| b).unwrap_or(name);
-        let bare_name = bare_name.rsplit_once('.').map(|(_, b)| b).unwrap_or(bare_name);
+        let bare_name = bare_name
+            .rsplit_once('.')
+            .map(|(_, b)| b)
+            .unwrap_or(bare_name);
         let outline = self.symbols(path, source);
         outline
             .symbols

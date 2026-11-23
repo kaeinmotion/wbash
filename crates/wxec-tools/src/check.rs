@@ -228,12 +228,16 @@ impl Tool for CheckTool {
         }
         let mut seen_diag = std::collections::HashSet::new();
         diagnostics.retain(|d| {
-            seen_diag.insert((d.file.clone(), d.line, d.col, d.severity.as_str(), d.message.clone()))
+            seen_diag.insert((
+                d.file.clone(),
+                d.line,
+                d.col,
+                d.severity.as_str(),
+                d.message.clone(),
+            ))
         });
         let mut seen_tests = std::collections::HashSet::new();
-        tests.retain(|t| {
-            seen_tests.insert(t.id.clone())
-        });
+        tests.retain(|t| seen_tests.insert(t.id.clone()));
         let errors = diagnostics
             .iter()
             .filter(|d| d.severity == Severity::Error)
