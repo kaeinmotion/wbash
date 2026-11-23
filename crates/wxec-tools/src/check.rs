@@ -288,10 +288,31 @@ impl Tool for CheckTool {
             if warnings > 0 {
                 result.note(format!("{warnings} warnings omitted while errors exist"));
             }
-            diagnostics
+            let err_only: Vec<_> = diagnostics
                 .into_iter()
                 .filter(|d| d.severity == Severity::Error)
-                .collect()
+                .collect();
+            if err_only.len() > 8 {
+                let count = err_only.len();
+                let kept: Vec<_> = err_only.iter().take(5).cloned().collect();
+                let omitted: Vec<_> = err_only.iter().skip(5).cloned().collect();
+                let omitted_text: Vec<String> = omitted.iter().map(|d| d.render()).collect();
+                if let Ok(href) =
+                    ctx.handles
+                        .put("flood", omitted_text.join("\n").as_bytes(), "text")
+                {
+                    result.note(format!("...+{} errors ({})", count - 5, href.id));
+                    result.handle(HandleRef {
+                        id: href.id,
+                        kind: href.kind,
+                        bytes: href.bytes,
+                        hash: href.hash,
+                    });
+                }
+                kept
+            } else {
+                err_only
+            }
         } else if warnings > 5 && errors == 0 && ctx.config.output.verbosity != "verbose" {
             let mut kept = Vec::new();
             let mut omitted = Vec::new();

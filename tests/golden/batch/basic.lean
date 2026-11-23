@@ -2,7 +2,7 @@
 #1 read ok
 src/main.rs (5 lines, b3:aaa38e2c80a5b5f6)
 1: mod config;
-2: 
+2:
 3: fn main() {
 4:     let _ = config::parse_config("x");
 5: }

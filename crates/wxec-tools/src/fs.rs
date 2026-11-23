@@ -575,7 +575,13 @@ impl Tool for ReadTool {
                 format!("{display}:{start}-{end} {} ({short})", found.name),
             );
             for i in start..=end {
-                r.low(format!("{i}: {}", lines[i - 1]));
+                let l = lines[i - 1];
+                let formatted = if l.is_empty() {
+                    format!("{i}:")
+                } else {
+                    format!("{i}: {l}")
+                };
+                r.low(formatted);
             }
             r.meta
                 .counts
@@ -652,7 +658,12 @@ impl Tool for ReadTool {
             }
             let mut raw = String::new();
             for i in start..=end {
-                let line = format!("{i}: {}", lines[i - 1]);
+                let l = lines[i - 1];
+                let line = if l.is_empty() {
+                    format!("{i}:")
+                } else {
+                    format!("{i}: {l}")
+                };
                 raw.push_str(&line);
                 raw.push('\n');
                 r.push(Item::new(ItemClass::MustKeep, 1.0, vec![line]));
@@ -721,11 +732,12 @@ impl Tool for ReadTool {
         if line_count > max_full {
             let head = (ctx.config.read.head_lines as usize).min(line_count);
             for (i, line) in lines.iter().take(head).enumerate() {
-                r.push(Item::new(
-                    ItemClass::High,
-                    6.0,
-                    vec![format!("{}: {}", i + 1, line)],
-                ));
+                let formatted = if line.is_empty() {
+                    format!("{}:", i + 1)
+                } else {
+                    format!("{}: {line}", i + 1)
+                };
+                r.push(Item::new(ItemClass::High, 6.0, vec![formatted]));
             }
             let h = ctx.handles.put("read", text.as_bytes(), "text")?;
             r.must(format!("...+{} lines ({})", line_count - head, h.id));
@@ -806,7 +818,12 @@ impl Tool for ReadTool {
         }
         if !used_diff {
             for (i, line) in lines.iter().enumerate() {
-                r.low(format!("{}: {}", i + 1, line));
+                let formatted = if line.is_empty() {
+                    format!("{}:", i + 1)
+                } else {
+                    format!("{}: {line}", i + 1)
+                };
+                r.low(formatted);
             }
         }
         let snapshot = ctx.handles.put("read_snapshot", text.as_bytes(), "text")?;

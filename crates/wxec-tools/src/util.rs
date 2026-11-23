@@ -242,7 +242,7 @@ pub fn diagnostics_into(
 
     let mut flooded: BTreeSet<usize> = BTreeSet::new();
     for idxs in groups.values() {
-        if idxs.len() > 20 {
+        if idxs.len() > 6 {
             let occurrences: Vec<String> = idxs.iter().map(|&i| diags[i].render()).collect();
             let href = handles.put("flood", occurrences.join("\n").as_bytes(), "text")?;
             let first = diags[idxs[0]].clone();

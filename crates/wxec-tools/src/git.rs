@@ -436,7 +436,7 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
                     .unwrap_or(rest)
                     .to_string();
                 if seen_file.insert(name.clone()) {
-                    r.high(name);
+                    r.high(format!("{name}:"));
                 }
                 continue;
             }
