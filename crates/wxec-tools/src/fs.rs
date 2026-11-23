@@ -189,7 +189,8 @@ fn render_tree(
         if collapse {
             let mut lines = Vec::new();
             collect_tree_lines(child, &format!("{indent}  "), sizes, &mut lines);
-            if lines.is_empty() {
+            let show_handle = ctx.config.output.verbosity == "verbose" || count > 50;
+            if !show_handle || lines.is_empty() {
                 result.must(format!("{indent}{name}/ ({count})"));
             } else {
                 let h = ctx
@@ -1192,6 +1193,8 @@ impl Tool for EditTool {
                 format!("created {display} ({} bytes)", content.len()),
             );
             r.meta.counts.insert("created".into(), 1);
+            r.meta.strings.insert("hash".into(), short.clone());
+            r.meta.strings.insert("full_hash".into(), hash::hash_bytes(content.as_bytes()));
             if a.expect_hash.is_some() {
                 r.meta.notes.push(format!("hash {short}"));
             }
@@ -1500,6 +1503,15 @@ impl Tool for EditTool {
             return Ok(r);
         }
 
+        if new == old {
+            let mut r = ToolResult::new("edit", format!("unchanged {display}"));
+            r.meta.counts.insert("inserted".into(), 0);
+            r.meta.counts.insert("deleted".into(), 0);
+            r.meta.strings.insert("hash".into(), old_short);
+            r.meta.strings.insert("full_hash".into(), old_hex);
+            return Ok(r);
+        }
+
         let bytes = match file.encoding.unwrap_or(wxec_index::TextEncoding::Utf8) {
             enc @ (wxec_index::TextEncoding::Utf16Le
             | wxec_index::TextEncoding::Utf16Be
@@ -1532,6 +1544,8 @@ impl Tool for EditTool {
         let mut r = ToolResult::new("edit", header);
         r.meta.counts.insert("inserted".into(), ins as i64);
         r.meta.counts.insert("deleted".into(), del as i64);
+        r.meta.strings.insert("hash".into(), short.clone());
+        r.meta.strings.insert("full_hash".into(), new_hex.clone());
         post_check(&mut r, ctx, &abs, &old, &new)?;
         Ok(r)
     }

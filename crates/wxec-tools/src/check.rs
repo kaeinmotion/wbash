@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use wxec_core::args::parse_args;
 use wxec_core::error::{Result, WErr};
 use wxec_core::registry::{Tool, ToolContext};
-use wxec_core::types::{Diagnostic, Severity, TestResult, Tier, ToolResult};
+use wxec_core::types::{Diagnostic, HandleRef, Severity, TestResult, Tier, ToolResult};
 
 use crate::run::execute_with_parsers;
 use crate::util;
@@ -226,7 +226,14 @@ impl Tool for CheckTool {
                 "install the toolchain or run the checker directly with `w run`",
             ));
         }
-
+        let mut seen_diag = std::collections::HashSet::new();
+        diagnostics.retain(|d| {
+            seen_diag.insert((d.file.clone(), d.line, d.col, d.severity.as_str(), d.message.clone()))
+        });
+        let mut seen_tests = std::collections::HashSet::new();
+        tests.retain(|t| {
+            seen_tests.insert(t.id.clone())
+        });
         let errors = diagnostics
             .iter()
             .filter(|d| d.severity == Severity::Error)
@@ -272,7 +279,44 @@ impl Tool for CheckTool {
                 header.push_str(&format!(", {ignored} ignored"));
             }
         }
-        util::diagnostics_into(&mut result, diagnostics, ctx.root, ctx.handles)?;
+        let filtered_diags = if errors > 0 && ctx.config.output.verbosity != "verbose" {
+            if warnings > 0 {
+                result.note(format!("{warnings} warnings omitted while errors exist"));
+            }
+            diagnostics
+                .into_iter()
+                .filter(|d| d.severity == Severity::Error)
+                .collect()
+        } else if warnings > 5 && errors == 0 && ctx.config.output.verbosity != "verbose" {
+            let mut kept = Vec::new();
+            let mut omitted = Vec::new();
+            for d in diagnostics {
+                if kept.len() < 3 {
+                    kept.push(d);
+                } else {
+                    omitted.push(d);
+                }
+            }
+            if !omitted.is_empty() {
+                let omitted_text: Vec<String> = omitted.iter().map(|d| d.render()).collect();
+                if let Ok(href) =
+                    ctx.handles
+                        .put("flood", omitted_text.join("\n").as_bytes(), "text")
+                {
+                    result.note(format!("...+{} warnings ({})", omitted.len(), href.id));
+                    result.handle(HandleRef {
+                        id: href.id,
+                        kind: href.kind,
+                        bytes: href.bytes,
+                        hash: href.hash,
+                    });
+                }
+            }
+            kept
+        } else {
+            diagnostics
+        };
+        util::diagnostics_into(&mut result, filtered_diags, ctx.root, ctx.handles)?;
         util::tests_into(&mut result, &tests, true);
         result.meta.ok = ok;
         result.meta.counts.insert("errors".into(), errors as i64);

@@ -378,7 +378,7 @@ impl Tool for SearchTool {
                 continue;
             };
             fhits.sort_by(|a, b| a.line.cmp(&b.line).then(a.col.cmp(&b.col)));
-            let grouped = fhits.len() >= 3;
+            let grouped = fhits.len() >= 2;
             if grouped {
                 result.push(Item::new(
                     ItemClass::High,

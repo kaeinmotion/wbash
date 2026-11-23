@@ -265,6 +265,8 @@ pub struct Meta {
     pub duration_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub counts: BTreeMap<String, i64>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub strings: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub redactions: u32,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

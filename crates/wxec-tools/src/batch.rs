@@ -120,14 +120,39 @@ impl Tool for BatchTool {
         let mut total_ins = 0i64;
         let mut total_del = 0i64;
         let mut total_passed = 0i64;
+        let mut total_replacements = 0i64;
+        let mut last_file_hashes: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
         for (i, call) in a.calls.iter().enumerate() {
+            let mut call_args = call.args.clone();
+            if call.tool == "edit" {
+                if let Some(path_val) = call_args.get("path").and_then(|v| v.as_str()) {
+                    let norm_path = path_val.strip_prefix("file://").unwrap_or(path_val);
+                    if let Some(prev_hash) = last_file_hashes.get(norm_path) {
+                        if let Some(obj) = call_args.as_object_mut() {
+                            if obj.contains_key("expect_hash") {
+                                obj.insert(
+                                    "expect_hash".to_string(),
+                                    serde_json::Value::String(prev_hash.clone()),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
             let remaining = n.saturating_sub(i) as u32;
             let used = estimator::estimate_text(&result.header).saturating_add(used_items_tokens);
             let budget_left = ctx.budget.saturating_sub(used);
             let per_child = (budget_left.saturating_sub(24) / remaining.max(1)).max(48);
-            match invoke_tool(ctx.registry, &call.tool, &call.args, ctx) {
+            match invoke_tool(ctx.registry, &call.tool, &call_args, ctx) {
                 Ok(child) => {
                     ok_count += 1;
+                    if let Some(h) = child.meta.strings.get("hash") {
+                        if let Some(p) = call.args.get("path").and_then(|v| v.as_str()) {
+                            let norm_path = p.strip_prefix("file://").unwrap_or(p);
+                            last_file_hashes.insert(norm_path.to_string(), h.clone());
+                        }
+                    }
                     if let Some(&ins) = child.meta.counts.get("inserted") {
                         total_ins += ins;
                     }
@@ -136,6 +161,9 @@ impl Tool for BatchTool {
                     }
                     if let Some(&p) = child.meta.counts.get("passed") {
                         total_passed += p;
+                    }
+                    if let Some(&rep) = child.meta.counts.get("replacements") {
+                        total_replacements += rep;
                     }
                     let rendered = formatter::render(
                         &child,
@@ -214,12 +242,15 @@ impl Tool for BatchTool {
             if total_passed > 0 {
                 parts.push(format!("{total_passed} passed"));
             }
+            if total_replacements > 0 {
+                parts.push(format!("{total_replacements} replaced"));
+            }
             let summary = if parts.is_empty() {
                 format!("{ok_count} actions ok")
             } else {
                 format!("{ok_count} ok ({})", parts.join(", "))
             };
-            result.push(Item::new(ItemClass::High, 10.0, vec![summary]));
+            result.header = format!("batch rollup: {summary}");
         }
         Ok(result)
     }
