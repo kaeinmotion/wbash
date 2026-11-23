@@ -1,1 +1,1 @@
-!invalid_args check: unknown field `argv`, expected one of `kind`, `target`, `type`, `dir`, `directory`, `folder`, `path`, `working_dir`. pass kind=all|build|lint|types|test and optional path
+!invalid_args check: unknown field `argv`, expected one of `kind`, `target`, `type`, `dir`, `directory`, `folder`, `path`, `working_dir`, `args`, `extra_args`, `filter`, `name`, `test`. pass kind=all|build|lint|types|test and optional path

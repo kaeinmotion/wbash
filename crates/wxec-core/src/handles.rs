@@ -272,6 +272,7 @@ impl HandleStore {
     }
 
     fn lock(&self, exclusive: bool) -> Result<FlockGuard> {
+        let _ = paths::ensure_private_dir(&self.dir);
         let lock_path = self.dir.join(".lock");
         let f = std::fs::OpenOptions::new()
             .create(true)
@@ -279,12 +280,7 @@ impl HandleStore {
             .write(true)
             .truncate(false)
             .open(&lock_path)
-            .map_err(|e| {
-                WErr::new(
-                    "permission_denied",
-                    format!("lock {}: {e}", lock_path.display()),
-                )
-            })?;
+            .map_err(|e| WErr::new("io_error", format!("lock {}: {e}", lock_path.display())))?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

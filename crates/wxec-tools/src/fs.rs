@@ -850,12 +850,19 @@ pub struct EditTool;
 struct EditArgs {
     #[serde(alias = "file", alias = "file_path", alias = "filepath")]
     path: String,
-    #[serde(alias = "target", alias = "old_string", alias = "old_str")]
+    #[serde(
+        alias = "target",
+        alias = "old_string",
+        alias = "old_str",
+        alias = "old_content",
+        alias = "search"
+    )]
     find: Option<String>,
     #[serde(
         alias = "replacement",
         alias = "new_string",
         alias = "new_str",
+        alias = "new_content",
         alias = "with",
         alias = "insert"
     )]
@@ -873,7 +880,9 @@ struct EditArgs {
     #[serde(alias = "end", alias = "to")]
     end_line: Option<usize>,
     create: Option<bool>,
+    #[serde(alias = "text", alias = "body", alias = "data")]
     content: Option<String>,
+    #[serde(alias = "force", alias = "upsert")]
     overwrite: Option<bool>,
     delete: Option<bool>,
     expect_hash: Option<String>,
@@ -881,6 +890,8 @@ struct EditArgs {
     append: bool,
     #[serde(default)]
     prepend: bool,
+    #[serde(default, alias = "preview")]
+    dry_run: bool,
 }
 
 fn fuzzy_match_anchor(old: &str, find: &str) -> Option<(usize, usize)> {
@@ -1109,6 +1120,17 @@ impl Tool for EditTool {
             ctx.ledger.invalidate_searches();
             ctx.workspace.invalidate();
             let action = if a.prepend { "prepended" } else { "appended" };
+            if a.dry_run {
+                let mut r = ToolResult::new(
+                    "edit",
+                    format!(
+                        "preview {action} {display} (+{} lines)",
+                        content.lines().count()
+                    ),
+                );
+                r.meta.counts.insert("edited".into(), 1);
+                return Ok(r);
+            }
             let mut r = ToolResult::new(
                 "edit",
                 format!("{action} {display} (+{} lines)", content.lines().count()),
@@ -1183,6 +1205,14 @@ impl Tool for EditTool {
                     format!("'{display}' already exists"),
                     "pass overwrite=true to replace it",
                 ));
+            }
+            if a.dry_run {
+                let mut r = ToolResult::new(
+                    "edit",
+                    format!("preview created {display} ({} bytes)", content.len()),
+                );
+                r.meta.counts.insert("created".into(), 1);
+                return Ok(r);
             }
             util::atomic_write(&abs, content.as_bytes())?;
             ctx.ledger.invalidate_path(&display);
@@ -1369,6 +1399,30 @@ impl Tool for EditTool {
             }
             (new, ins, del)
         };
+
+        if a.dry_run {
+            let header = format!("preview {display} (+{ins} -{del})");
+            let mut r = ToolResult::new("edit", header);
+            r.meta.counts.insert("inserted".into(), ins as i64);
+            r.meta.counts.insert("deleted".into(), del as i64);
+            let diff = similar::TextDiff::from_lines(&old, &new);
+            let mut diff_lines = Vec::new();
+            for change in diff.iter_all_changes() {
+                let sign = match change.tag() {
+                    similar::ChangeTag::Delete => "-",
+                    similar::ChangeTag::Insert => "+",
+                    similar::ChangeTag::Equal => " ",
+                };
+                diff_lines.push(format!(
+                    "{sign}{}",
+                    change.value().trim_end_matches(['\r', '\n'])
+                ));
+            }
+            if !diff_lines.is_empty() {
+                r.push(Item::new(ItemClass::High, 1.0, diff_lines));
+            }
+            return Ok(r);
+        }
 
         let bytes = match file.encoding.unwrap_or(wxec_index::TextEncoding::Utf8) {
             enc @ (wxec_index::TextEncoding::Utf16Le

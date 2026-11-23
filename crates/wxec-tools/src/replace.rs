@@ -52,10 +52,17 @@ struct ReplaceArgs {
     word: bool,
     #[serde(default)]
     regex: bool,
-    #[serde(default)]
+    #[serde(default, alias = "preview")]
     dry_run: bool,
-    #[serde(default = "max_files_default")]
+    #[serde(
+        default = "max_files_default",
+        deserialize_with = "wxec_core::args::deserialize_u32_lenient"
+    )]
     max_files: u32,
+    #[serde(
+        default,
+        deserialize_with = "wxec_core::args::deserialize_u32_opt_lenient"
+    )]
     limit: Option<u32>,
 }
 

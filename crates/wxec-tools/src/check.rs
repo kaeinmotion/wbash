@@ -39,6 +39,15 @@ struct CheckArgs {
         alias = "folder"
     )]
     path: String,
+    #[serde(
+        default,
+        deserialize_with = "wxec_core::args::deserialize_argv_opt",
+        alias = "filter",
+        alias = "test",
+        alias = "name",
+        alias = "extra_args"
+    )]
+    args: Option<Vec<String>>,
 }
 
 fn all() -> String {
@@ -111,6 +120,13 @@ impl Tool for CheckTool {
             }
         };
         commands.dedup();
+        if let Some(user_args) = &a.args {
+            if !user_args.is_empty() {
+                for (_label, argv) in &mut commands {
+                    argv.extend(user_args.iter().cloned());
+                }
+            }
+        }
         if commands.is_empty() {
             return Err(WErr::with_hint(
                 "no_checker_detected",

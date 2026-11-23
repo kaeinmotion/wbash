@@ -309,6 +309,73 @@ where
     deserializer.deserialize_any(ArgvVisitor)
 }
 
+/// Flexible Option<Vec<String>> deserializer for tool args.
+/// Accepts either an array of strings (`["cargo", "test"]`), a single command string (`"cargo test"`), or null/empty.
+pub fn deserialize_argv_opt<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct OptArgvVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for OptArgvVisitor {
+        type Value = Option<Vec<String>>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("an array of strings, a single command string, or null")
+        }
+
+        fn visit_none<E>(self) -> std::result::Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> std::result::Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_some<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            deserializer.deserialize_any(OptArgvVisitor)
+        }
+
+        fn visit_str<E>(self, s: &str) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            let parts = split_shell_tokens(s);
+            if parts.is_empty() {
+                if s.trim().is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(vec![s.to_string()]))
+                }
+            } else {
+                Ok(Some(parts))
+            }
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+        where
+            A: serde::de::SeqAccess<'de>,
+        {
+            let mut items = Vec::new();
+            while let Some(item) = seq.next_element::<String>()? {
+                items.push(item);
+            }
+            if items.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(items))
+            }
+        }
+    }
+
+    deserializer.deserialize_option(OptArgvVisitor)
+}
+
 /// Parse a `start:end` 1-based inclusive range. Either side may be omitted.
 pub fn parse_line_range(spec: &str, len: usize) -> Result<(usize, usize)> {
     parse_line_range_inner(spec, len, false)
