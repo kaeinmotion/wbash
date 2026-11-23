@@ -99,6 +99,7 @@ simd-accelerated workspace search supporting plain text, regular expressions, an
 | `context` | integer | `0` | number of leading and trailing context lines |
 | `limit` | integer | `null` | maximum number of matches to return |
 | `stats` | boolean | `false` | append execution footer with scanned file counts |
+| `word` | boolean | `false` | match whole words only (word boundary matching) |
 
 - **behavior**:
   - uses vectorized memory pre-matching (`memmem`).
@@ -144,6 +145,8 @@ surgical code editor utilizing exact literal matching, line-range splices, or fi
 | `create` | boolean | `false` | create new file only; fails if file already exists (unless overwrite=true) |
 | `overwrite` | boolean | `false` | explicit overwrite flag (optional when content is passed to update existing file) |
 | `delete` | boolean | `false` | delete specified file |
+| `append` | boolean | `false` | append content to the end of the file |
+| `prepend` | boolean | `false` | prepend content to the beginning of the file |
 | `expect_hash` | string | `null` | reject edit if current file hash does not match |
 
 - **behavior**:

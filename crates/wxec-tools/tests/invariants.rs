@@ -599,4 +599,45 @@ fn test_ergonomic_tool_features() {
         json!({"find": "custom_replaced", "path": "crlf.txt"}),
     );
     assert!(replace_del.ok, "{}", replace_del.text);
+
+    // 26. edit append and prepend
+    let append_call = call(
+        &mut d,
+        "edit",
+        json!({"path": "crlf.txt", "content": "appended_line", "append": true}),
+    );
+    assert!(append_call.ok, "{}", append_call.text);
+    let verify_append = call(&mut d, "read", json!({"path": "crlf.txt"}));
+    assert!(verify_append.text.contains("appended_line"));
+
+    let prepend_call = call(
+        &mut d,
+        "edit",
+        json!({"path": "crlf.txt", "content": "prepended_line", "prepend": true}),
+    );
+    assert!(prepend_call.ok, "{}", prepend_call.text);
+    let verify_prepend = call(&mut d, "read", json!({"path": "crlf.txt"}));
+    assert!(verify_prepend.text.contains("prepended_line"));
+
+    // 27. search whole word, git log with path, and batch with null args
+    let word_search = call(
+        &mut d,
+        "search",
+        json!({"pattern": "appended_line", "word": true}),
+    );
+    assert!(word_search.ok, "{}", word_search.text);
+
+    let log_path = call(&mut d, "git", json!({"op": "log", "path": "crlf.txt"}));
+    assert!(log_path.ok, "{}", log_path.text);
+
+    let batch_null = call(
+        &mut d,
+        "batch",
+        json!({
+            "calls": [
+                {"tool": "tree", "args": null}
+            ]
+        }),
+    );
+    assert!(batch_null.ok, "{}", batch_null.text);
 }

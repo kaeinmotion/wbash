@@ -461,6 +461,11 @@ fn log(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
         reject_dash_arg("ref", r)?;
         args.push(r.clone());
     }
+    let paths = pathspecs(a)?;
+    if !paths.is_empty() {
+        args.push("--".to_string());
+        args.extend(paths);
+    }
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
     let out = git(ctx, &refs).map_err(map_git_err)?;
     if !out.exit.is_success() {

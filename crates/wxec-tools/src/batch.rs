@@ -78,7 +78,7 @@ impl Tool for BatchTool {
         })
     }
     fn call(&self, args: &Value, ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
-        let a: BatchArgs = parse_args(
+        let mut a: BatchArgs = parse_args(
             args.clone(),
             "batch",
             "calls=[{\"tool\":\"read\",\"args\":{...}}]",
@@ -96,12 +96,15 @@ impl Tool for BatchTool {
                 format!("split into batches of at most {max}"),
             ));
         }
-        for (i, call) in a.calls.iter().enumerate() {
+        for (i, call) in a.calls.iter_mut().enumerate() {
             if call.tool == "batch" {
                 return Err(WErr::invalid_args(
                     "nested batch is not supported",
                     format!("call #{i} is batch"),
                 ));
+            }
+            if call.args.is_null() {
+                call.args = json!({});
             }
             precheck(ctx.registry, &call.tool, &call.args, ctx)?;
         }

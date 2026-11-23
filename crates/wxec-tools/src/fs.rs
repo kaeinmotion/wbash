@@ -872,6 +872,10 @@ struct EditArgs {
     overwrite: Option<bool>,
     delete: Option<bool>,
     expect_hash: Option<String>,
+    #[serde(default)]
+    append: bool,
+    #[serde(default)]
+    prepend: bool,
 }
 
 fn fuzzy_match_anchor(old: &str, find: &str) -> Option<(usize, usize)> {
@@ -1057,6 +1061,47 @@ impl Tool for EditTool {
 
         if replace.is_none() && (find.is_some() || lines.is_some()) && content.is_some() {
             replace = content.clone();
+        }
+
+        if a.append || a.prepend {
+            let content = content.clone().ok_or_else(|| {
+                WErr::invalid_args("append/prepend requires content", "content=<text to append>")
+            })?;
+            let old = if abs.exists() {
+                let file = wxec_index::read_text(&abs)
+                    .map_err(|e| WErr::new("not_found", format!("read {display}: {e}")))?;
+                file.content
+            } else {
+                String::new()
+            };
+            let mut new = String::with_capacity(old.len() + content.len() + 2);
+            if a.prepend {
+                new.push_str(&content);
+                if !content.ends_with('\n') && !old.is_empty() {
+                    new.push('\n');
+                }
+                new.push_str(&old);
+            } else {
+                new.push_str(&old);
+                if !old.is_empty() && !old.ends_with('\n') {
+                    new.push('\n');
+                }
+                new.push_str(&content);
+            }
+            if !new.ends_with('\n') {
+                new.push('\n');
+            }
+            util::atomic_write(&abs, new.as_bytes())?;
+            ctx.ledger.invalidate_path(&display);
+            ctx.ledger.invalidate_searches();
+            ctx.workspace.invalidate();
+            let action = if a.prepend { "prepended" } else { "appended" };
+            let mut r = ToolResult::new(
+                "edit",
+                format!("{action} {display} (+{} lines)", content.lines().count()),
+            );
+            r.meta.counts.insert("edited".into(), 1);
+            return Ok(r);
         }
 
         let is_create = a.create.unwrap_or(false)

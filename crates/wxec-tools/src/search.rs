@@ -40,6 +40,8 @@ struct SearchArgs {
     case_insensitive: bool,
     #[serde(default)]
     case_sensitive: Option<bool>,
+    #[serde(default, alias = "whole_word")]
+    word: bool,
 }
 
 fn text() -> String {
@@ -181,27 +183,26 @@ impl Tool for SearchTool {
         }
         let gs = util::globset(a.glob.as_deref())?;
         let is_case_insensitive = a.case_insensitive || a.case_sensitive == Some(false);
-        let regex = if a.mode == "regex" {
+        let regex = if a.mode == "regex" || a.word || is_case_insensitive {
+            let pat = if a.mode == "regex" {
+                if a.word {
+                    format!(r"\b(?:{})\b", &a.pattern)
+                } else {
+                    a.pattern.clone()
+                }
+            } else if a.word {
+                format!(r"\b{}\b", regex::escape(&a.pattern))
+            } else {
+                regex::escape(&a.pattern)
+            };
             Some(
-                regex::RegexBuilder::new(&a.pattern)
+                regex::RegexBuilder::new(&pat)
                     .case_insensitive(is_case_insensitive)
                     .build()
                     .map_err(|e| {
                         WErr::invalid_args(
-                            format!("invalid regex '{}': {e}", a.pattern),
-                            "check escaping or use mode=text",
-                        )
-                    })?,
-            )
-        } else if is_case_insensitive {
-            Some(
-                regex::RegexBuilder::new(&regex::escape(&a.pattern))
-                    .case_insensitive(true)
-                    .build()
-                    .map_err(|e| {
-                        WErr::invalid_args(
                             format!("invalid pattern '{}': {e}", a.pattern),
-                            "use mode=text",
+                            "check escaping or use mode=text",
                         )
                     })?,
             )
