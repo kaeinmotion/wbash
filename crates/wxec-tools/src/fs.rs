@@ -1199,18 +1199,20 @@ fn apply_single_hunk(
                     };
                     match idx {
                         Some(i) if i < all_positions.len() => Some((all_positions[i], match_len)),
-                        _ => return Err(WErr::with_hint(
-                            "invalid_occurrence",
-                            format!(
+                        _ => {
+                            return Err(WErr::with_hint(
+                                "invalid_occurrence",
+                                format!(
                                 "occurrence {occ} out of bounds (found {} matches in {display})",
                                 all_positions.len()
                             ),
-                            format!(
-                                "pass occurrence 1..={} or -1..=-{}",
-                                all_positions.len(),
-                                all_positions.len()
-                            ),
-                        )),
+                                format!(
+                                    "pass occurrence 1..={} or -1..=-{}",
+                                    all_positions.len(),
+                                    all_positions.len()
+                                ),
+                            ))
+                        }
                     }
                 } else if let Some(target_line) = near_line {
                     let best = all_positions.iter().min_by_key(|&&p| {
