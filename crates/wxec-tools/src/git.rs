@@ -85,13 +85,12 @@ impl Tool for GitTool {
         json!({
             "type": "object",
             "properties": {
-                "op": {"type": "string", "enum": ["status", "add", "diff", "log", "show", "blame", "branch", "commit", "push", "pull", "tag", "remote"]},
+                "op": {"type": "string", "enum": ["status", "add", "diff", "log", "show", "blame", "branch", "checkout", "switch", "commit", "push", "pull", "tag", "remote", "raw"]},
                 "pathspec": {"type": ["string", "array"]},
                 "staged": {"type": "boolean"},
+                "cached": {"type": "boolean"},
                 "stat": {"type": "boolean"},
-                "name_only": {"type": "boolean"},
                 "numstat": {"type": "boolean"},
-                "context": {"type": "integer"},
                 "limit": {"type": "integer"},
                 "ref": {"type": "string"},
                 "path": {"type": "string"},
@@ -99,10 +98,10 @@ impl Tool for GitTool {
                 "message": {"type": "string"},
                 "stage": {"type": "boolean"},
                 "all": {"type": "boolean"},
-                "allow_empty": {"type": "boolean"},
                 "remote": {"type": "string"},
                 "branch": {"type": "string"},
-                "set_upstream": {"type": "boolean"}
+                "set_upstream": {"type": "boolean"},
+                "args": {"type": "array", "items": {"type": "string"}}
             },
             "required": ["op"],
             "additionalProperties": false

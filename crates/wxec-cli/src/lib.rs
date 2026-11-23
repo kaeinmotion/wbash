@@ -1414,7 +1414,7 @@ fn print_help() {
 
 fn print_mcp_help() {
     println!(
-        "wxec {} - Universal Model Context Protocol (MCP) server & token-efficient CLI",
+        "wxec {} - Universal Model Context Protocol (MCP) server & token-efficient engine",
         env!("CARGO_PKG_VERSION")
     );
     println!();
@@ -1423,11 +1423,8 @@ fn print_mcp_help() {
     println!("  wxec [OPTIONS]");
     println!("  w [OPTIONS]");
     println!();
-    println!("  # Terminal / Shell CLI Mode (bash, zsh, tmux, scripts, CI/CD):");
-    println!("  w <tool> [ARGS...]");
-    println!();
-    println!("TOOLS:");
-    println!("  w s <pat> [path]                search (text, regex, symbols)");
+    println!("  # Note: CLI mode is disabled by default to eliminate shell token waste.");
+    println!("  # Connect via native MCP client over stdio. For scripts/benchmarks: WXEC_ALLOW_CLI=1 w <tool>");
     println!("  w r <paths...> [lines]          read (supports file:1:40, multi-file)");
     println!("  w e <path> [find/lines] [repl]  edit (exact/fuzzy anchor, lines, all=true)");
     println!("  w p <find> <repl> [path]        replace across files");
@@ -1469,7 +1466,13 @@ pub fn run_mcp(argv: Vec<String>) -> i32 {
         }
     };
     if tool.is_some() {
-        return run(argv);
+        if std::env::var("WXEC_ALLOW_CLI").map(|v| v == "1").unwrap_or(false) {
+            return run(argv);
+        }
+        eprintln!("error: cli mode is disabled to protect token budget. wxec operates strictly as an mcp server over stdio.");
+        eprintln!("direct shell execution wastes tokens. connect via native mcp in cursor, claude desktop, cline, windsurf, or opencode.");
+        eprintln!("for internal scripts/benchmarks only, set WXEC_ALLOW_CLI=1.");
+        return 1;
     }
     let tier = match global.tier.as_deref() {
         Some(t) => match t.parse::<wxec_core::types::Tier>() {
@@ -1494,7 +1497,6 @@ pub fn run_mcp(argv: Vec<String>) -> i32 {
         }
     }
 }
-
 pub fn util_map(pairs: &[(&str, i64)]) -> BTreeMap<String, i64> {
     config::counts_map(pairs)
 }
@@ -1668,5 +1670,20 @@ mod tests {
         .unwrap();
         assert_eq!(obj2["kind"], "lint");
         assert_eq!(obj2["path"], "crates");
+    }
+
+    #[test]
+    fn run_mcp_blocks_cli_without_env_var() {
+        std::env::remove_var("WXEC_ALLOW_CLI");
+        let res = super::run_mcp(vec!["read".to_string(), "Cargo.toml".to_string()]);
+        assert_eq!(res, 1);
+    }
+
+    #[test]
+    fn run_mcp_allows_cli_with_env_var() {
+        std::env::set_var("WXEC_ALLOW_CLI", "1");
+        let res = super::run_mcp(vec!["--help".to_string()]);
+        assert_eq!(res, 0);
+        std::env::remove_var("WXEC_ALLOW_CLI");
     }
 }
