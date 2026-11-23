@@ -851,7 +851,19 @@ fn fill_positionals(tool: &str, obj: &mut Map<String, Value>, pos: &[String]) ->
             if !obj.contains_key("calls") {
                 if let Some(first) = pos.first() {
                     let v = first.strip_prefix("calls=").unwrap_or(first);
-                    if v.trim_start().starts_with('[') {
+                    let trimmed = v.trim_start();
+                    if trimmed.starts_with('{') {
+                        if let Ok(Value::Object(m)) = serde_json::from_str(trimmed) {
+                            for (k, val) in m {
+                                obj.insert(k, val);
+                            }
+                        } else {
+                            return Err(WErr::invalid_args(
+                                "invalid JSON object for batch",
+                                "w batch '{\"calls\":[...]}'",
+                            ));
+                        }
+                    } else if trimmed.starts_with('[') {
                         if pos.len() > 1 {
                             return Err(WErr::invalid_args(
                                 format!("{tool}: unexpected positional '{}'", pos[1]),
@@ -1402,13 +1414,28 @@ fn print_help() {
 
 fn print_mcp_help() {
     println!(
-        "wxec {} - Token-efficient Model Context Protocol (MCP) server",
+        "wxec {} - Universal Model Context Protocol (MCP) server & token-efficient CLI",
         env!("CARGO_PKG_VERSION")
     );
     println!();
     println!("USAGE:");
+    println!("  # MCP Server Mode (Claude Desktop, Cursor, Cline, OpenCode, Windsurf):");
     println!("  wxec [OPTIONS]");
     println!("  w [OPTIONS]");
+    println!();
+    println!("  # Terminal / Shell CLI Mode (bash, zsh, tmux, scripts, CI/CD):");
+    println!("  w <tool> [ARGS...]");
+    println!();
+    println!("TOOLS:");
+    println!("  w s <pat> [path]                search (text, regex, symbols)");
+    println!("  w r <paths...> [lines]          read (supports file:1:40, multi-file)");
+    println!("  w e <path> [find/lines] [repl]  edit (exact/fuzzy anchor, lines, all=true)");
+    println!("  w p <find> <repl> [path]        replace across files");
+    println!("  w c [kind] [filter]             check (all|build|test|lint)");
+    println!("  w u <cmd...>                    run executable directly");
+    println!("  w g <status|diff|commit|push>   git operations");
+    println!("  w b \"<cmd 1>\" \"<cmd 2>\"         batch (supports chaining & JSON)");
+    println!("  w x <id>                        expand handle (~id or bare id)");
     println!();
     println!("OPTIONS:");
     println!("  --root <DIR>         Workspace root directory (defaults to current dir)");
@@ -1419,10 +1446,6 @@ fn print_mcp_help() {
     println!("  --no-project-config  Ignore .wxec.toml in workspace");
     println!("  -h, --help           Print help");
     println!("  -V, --version        Print version");
-    println!();
-    println!("NOTE: CLI subcommand mode is disabled. wxec operates strictly as an MCP server over stdio.");
-    println!("Configure in your MCP client (Cursor, Claude Desktop, Cline):");
-    println!("  \"command\": \"wxec\"");
 }
 
 // ---------------------------------------------------------------------------
@@ -1446,15 +1469,7 @@ pub fn run_mcp(argv: Vec<String>) -> i32 {
         }
     };
     if tool.is_some() {
-        if std::env::var("WXEC_ALLOW_CLI")
-            .map(|v| v == "1")
-            .unwrap_or(false)
-        {
-            return run(argv);
-        }
-        eprintln!("error: CLI mode is disabled. wxec operates strictly as a Model Context Protocol (MCP) server over stdio.");
-        eprintln!("To connect, configure 'wxec' (or 'w') in your MCP client (Claude Desktop, Cursor, Cline).");
-        return 1;
+        return run(argv);
     }
     let tier = match global.tier.as_deref() {
         Some(t) => match t.parse::<wxec_core::types::Tier>() {

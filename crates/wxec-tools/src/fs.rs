@@ -892,6 +892,8 @@ struct EditArgs {
     prepend: bool,
     #[serde(default, alias = "preview")]
     dry_run: bool,
+    #[serde(default, alias = "replace_all")]
+    all: bool,
 }
 
 fn fuzzy_match_anchor(old: &str, find: &str) -> Option<(usize, usize)> {
@@ -1271,49 +1273,76 @@ impl Tool for EditTool {
                     "replace=<new text> (supports - for stdin or @path)",
                 ));
             }
-            let mut it = old.match_indices(find.as_str()).map(|(i, _)| i);
-            let pos_and_len = match it.next() {
-                Some(pos) => {
-                    if let Some(second) = it.next() {
-                        let mut positions = vec![pos, second];
-                        let mut more = 0usize;
-                        for p in it {
-                            more += 1;
-                            if positions.len() < 5 {
-                                positions.push(p);
-                            }
-                        }
-                        let n = 2 + more;
-                        let locs: Vec<String> = positions
-                            .iter()
-                            .take(5)
-                            .map(|p| {
-                                let line = old[..*p].matches('\n').count() + 1;
-                                let col = p - old[..*p].rfind('\n').map(|i| i + 1).unwrap_or(0) + 1;
-                                format!("{line}:{col}")
-                            })
-                            .collect();
-                        return Err(WErr::with_hint(
-                            "ambiguous_anchor",
-                            format!("{n} matches in {display} at {}", locs.join(", ")),
-                            format!("try: w read path={display} lines=<start>:<end>"),
-                        ));
-                    }
-                    Some((pos, find.len()))
+            if a.all {
+                let matches = old.matches(find.as_str()).count();
+                if matches == 0 {
+                    return Err(WErr::with_hint(
+                        "anchor_not_found",
+                        format!("anchor not found in {display}"),
+                        format!("try: w read path={display} lines=1:80"),
+                    ));
                 }
-                None => {
-                    let normalized = if old.contains("\r\n") && !find.contains("\r\n") {
-                        find.replace('\n', "\r\n")
-                    } else if !old.contains("\r\n") && find.contains("\r\n") {
-                        find.replace("\r\n", "\n")
-                    } else {
-                        find.clone()
-                    };
-                    if normalized != *find {
-                        let mut nit = old.match_indices(normalized.as_str()).map(|(i, _)| i);
-                        if let Some(pos) = nit.next() {
-                            if nit.next().is_none() {
-                                Some((pos, normalized.len()))
+                let replace_text = if old.contains("\r\n") && !replace.contains("\r\n") {
+                    replace.replace('\n', "\r\n")
+                } else if !old.contains("\r\n") && replace.contains("\r\n") {
+                    replace.replace("\r\n", "\n")
+                } else {
+                    replace.clone()
+                };
+                let new = old.replace(find.as_str(), &replace_text);
+                let ins = replace.lines().count().max(1) * matches;
+                let del = find.lines().count().max(1) * matches;
+                (new, ins, del)
+            } else {
+                let mut it = old.match_indices(find.as_str()).map(|(i, _)| i);
+                let pos_and_len = match it.next() {
+                    Some(pos) => {
+                        if let Some(second) = it.next() {
+                            let mut positions = vec![pos, second];
+                            let mut more = 0usize;
+                            for p in it {
+                                more += 1;
+                                if positions.len() < 5 {
+                                    positions.push(p);
+                                }
+                            }
+                            let n = 2 + more;
+                            let locs: Vec<String> = positions
+                                .iter()
+                                .take(5)
+                                .map(|p| {
+                                    let line = old[..*p].matches('\n').count() + 1;
+                                    let col =
+                                        p - old[..*p].rfind('\n').map(|i| i + 1).unwrap_or(0) + 1;
+                                    format!("{line}:{col}")
+                                })
+                                .collect();
+                            return Err(WErr::with_hint(
+                                "ambiguous_anchor",
+                                format!("{n} matches in {display} at {}", locs.join(", ")),
+                                format!("try: w read path={display} lines=<start>:<end>"),
+                            ));
+                        }
+                        Some((pos, find.len()))
+                    }
+                    None => {
+                        let normalized = if old.contains("\r\n") && !find.contains("\r\n") {
+                            find.replace('\n', "\r\n")
+                        } else if !old.contains("\r\n") && find.contains("\r\n") {
+                            find.replace("\r\n", "\n")
+                        } else {
+                            find.clone()
+                        };
+                        if normalized != *find {
+                            let mut nit = old.match_indices(normalized.as_str()).map(|(i, _)| i);
+                            if let Some(pos) = nit.next() {
+                                if nit.next().is_none() {
+                                    Some((pos, normalized.len()))
+                                } else {
+                                    None
+                                }
+                            } else if let Some((start, end)) = fuzzy_match_anchor(&old, find) {
+                                Some((start, end - start))
                             } else {
                                 None
                             }
@@ -1322,44 +1351,40 @@ impl Tool for EditTool {
                         } else {
                             None
                         }
-                    } else if let Some((start, end)) = fuzzy_match_anchor(&old, find) {
-                        Some((start, end - start))
-                    } else {
-                        None
                     }
-                }
-            };
-            let (pos, match_len) = match pos_and_len {
-                Some(p) => p,
-                None => {
-                    let hint = if (find.contains("\r\n") != old.contains("\r\n"))
-                        || (find.contains('\t') != old.contains('\t'))
-                    {
-                        format!("try: anchor may differ in indentation or line endings (CRLF vs LF); check with `w read path={display}`")
-                    } else {
-                        format!("try: w read path={display} lines=1:80")
-                    };
-                    return Err(WErr::with_hint(
-                        "anchor_not_found",
-                        format!("anchor not found in {display}"),
-                        hint,
-                    ));
-                }
-            };
-            let replace_text = if old.contains("\r\n") && !replace.contains("\r\n") {
-                replace.replace('\n', "\r\n")
-            } else if !old.contains("\r\n") && replace.contains("\r\n") {
-                replace.replace("\r\n", "\n")
-            } else {
-                replace.clone()
-            };
-            let mut new = String::with_capacity(old.len() + replace_text.len());
-            new.push_str(&old[..pos]);
-            new.push_str(&replace_text);
-            new.push_str(&old[pos + match_len..]);
-            let ins = replace.lines().count().max(1);
-            let del = find.lines().count().max(1);
-            (new, ins, del)
+                };
+                let (pos, match_len) = match pos_and_len {
+                    Some(p) => p,
+                    None => {
+                        let hint = if (find.contains("\r\n") != old.contains("\r\n"))
+                            || (find.contains('\t') != old.contains('\t'))
+                        {
+                            format!("try: anchor may differ in indentation or line endings (CRLF vs LF); check with `w read path={display}`")
+                        } else {
+                            format!("try: w read path={display} lines=1:80")
+                        };
+                        return Err(WErr::with_hint(
+                            "anchor_not_found",
+                            format!("anchor not found in {display}"),
+                            hint,
+                        ));
+                    }
+                };
+                let replace_text = if old.contains("\r\n") && !replace.contains("\r\n") {
+                    replace.replace('\n', "\r\n")
+                } else if !old.contains("\r\n") && replace.contains("\r\n") {
+                    replace.replace("\r\n", "\n")
+                } else {
+                    replace.clone()
+                };
+                let mut new = String::with_capacity(old.len() + replace_text.len());
+                new.push_str(&old[..pos]);
+                new.push_str(&replace_text);
+                new.push_str(&old[pos + match_len..]);
+                let ins = replace.lines().count().max(1);
+                let del = find.lines().count().max(1);
+                (new, ins, del)
+            }
         } else {
             let spec = lines.as_ref().unwrap();
             let line_count = old.lines().count();
