@@ -769,19 +769,35 @@ fn test_ergonomic_tool_features() {
     assert!(read_fuzzy.ok, "{}", read_fuzzy.text);
     assert!(read_fuzzy.text.contains("fn unique_test()"));
 
-    let edit_fuzzy = call(&mut d, "edit", json!({
-        "path": "unique_target.rs",
-        "find": "unique_test",
-        "replace": "fuzzy_edited_test"
-    }));
+    let edit_fuzzy = call(
+        &mut d,
+        "edit",
+        json!({
+            "path": "unique_target.rs",
+            "find": "unique_test",
+            "replace": "fuzzy_edited_test"
+        }),
+    );
     assert!(edit_fuzzy.ok, "{}", edit_fuzzy.text);
-    let verify_fuzzy_edit = call(&mut d, "read", json!({"path": "nested/sub/unique_target.rs"}));
+    let verify_fuzzy_edit = call(
+        &mut d,
+        "read",
+        json!({"path": "nested/sub/unique_target.rs"}),
+    );
     assert!(verify_fuzzy_edit.text.contains("fuzzy_edited_test"));
 
     // 32. read with context around line
     let context_file = root.join("context_sample.txt");
-    std::fs::write(&context_file, (1..=20).map(|i| format!("line {i}\n")).collect::<String>()).unwrap();
-    let read_ctx = call(&mut d, "read", json!({"path": "context_sample.txt", "lines": "10:10", "context": 2}));
+    std::fs::write(
+        &context_file,
+        (1..=20).map(|i| format!("line {i}\n")).collect::<String>(),
+    )
+    .unwrap();
+    let read_ctx = call(
+        &mut d,
+        "read",
+        json!({"path": "context_sample.txt", "lines": "10:10", "context": 2}),
+    );
     assert!(read_ctx.ok, "{}", read_ctx.text);
     assert!(read_ctx.text.contains("8: line 8"));
     assert!(read_ctx.text.contains("10: line 10"));
@@ -792,17 +808,39 @@ fn test_ergonomic_tool_features() {
     // 33. expand with refs array without requiring single ref
     let r1 = call(&mut d, "read", json!({"path": "big.txt", "budget": 64}));
     let h1 = handle_id(&r1.text);
-    let expand_refs = call(&mut d, "expand", json!({"refs": [h1]}));
+    let big2_file = root.join("big2.txt");
+    std::fs::write(
+        &big2_file,
+        (1..=100)
+            .map(|i| format!("big line {i}\n"))
+            .collect::<String>(),
+    )
+    .unwrap();
+    let r2 = call(&mut d, "read", json!({"path": "big2.txt", "budget": 64}));
+    let h2 = handle_id(&r2.text);
+    let expand_refs = call(&mut d, "expand", json!({"refs": [h1.clone(), h2]}));
     assert!(expand_refs.ok, "{}", expand_refs.text);
     assert!(expand_refs.text.contains("handles expanded"));
 
+    let expand_single = call(&mut d, "expand", json!({"refs": [h1]}));
+    assert!(expand_single.ok, "{}", expand_single.text);
+    assert!(expand_single.text.contains("line"));
+
     // 34. replace with handle resolution and fuzzy path resolution
-    let replace_fuzzy = call(&mut d, "replace", json!({
-        "path": "unique_target.rs",
-        "find": "fuzzy_edited_test",
-        "replace": "fuzzy_replaced_ok"
-    }));
+    let replace_fuzzy = call(
+        &mut d,
+        "replace",
+        json!({
+            "path": "unique_target.rs",
+            "find": "fuzzy_edited_test",
+            "replace": "fuzzy_replaced_ok"
+        }),
+    );
     assert!(replace_fuzzy.ok, "{}", replace_fuzzy.text);
-    let verify_replace = call(&mut d, "read", json!({"path": "nested/sub/unique_target.rs"}));
+    let verify_replace = call(
+        &mut d,
+        "read",
+        json!({"path": "nested/sub/unique_target.rs"}),
+    );
     assert!(verify_replace.text.contains("fuzzy_replaced_ok"));
 }

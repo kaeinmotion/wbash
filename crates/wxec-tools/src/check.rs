@@ -123,9 +123,7 @@ impl Tool for CheckTool {
         if let Some(user_args) = &a.args {
             if !user_args.is_empty() {
                 for (label, argv) in &mut commands {
-                    if kind == "test" || label.contains("test") || label.contains("pytest") {
-                        argv.extend(user_args.iter().cloned());
-                    } else if kind != "all" {
+                    if kind != "all" || label.contains("test") || label.contains("pytest") {
                         argv.extend(user_args.iter().cloned());
                     }
                 }

@@ -290,10 +290,7 @@ impl Tool for SearchTool {
             }
             let mut result = ToolResult::new(
                 "search",
-                format!(
-                    "{} with matches",
-                    util::plural(file_set.len(), "file")
-                ),
+                format!("{} with matches", util::plural(file_set.len(), "file")),
             );
             let lines: Vec<String> = file_set.into_iter().collect();
             result.push(Item::new(ItemClass::MustKeep, 1.0, lines));

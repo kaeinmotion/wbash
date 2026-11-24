@@ -424,7 +424,10 @@ impl Tool for ReadTool {
                         let cleaned = rest.replace('L', "").replace('-', ":");
                         a.path = file_part;
                         a.lines = Some(cleaned);
-                    } else if spec.chars().all(|c| c.is_ascii_digit() || c == '-' || c == ':') {
+                    } else if spec
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
+                    {
                         a.path = file_part;
                         a.lines = Some(spec.replace('-', ":"));
                     } else if a.symbol.is_none() && !spec.is_empty() {
@@ -432,7 +435,9 @@ impl Tool for ReadTool {
                         a.symbol = Some(spec);
                     }
                 } else if !file_part.is_empty()
-                    && spec.chars().all(|c| c.is_ascii_digit() || c == '-' || c == ':')
+                    && spec
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
                 {
                     a.path = file_part;
                     a.lines = Some(spec.replace('-', ":"));
@@ -1470,7 +1475,10 @@ impl Tool for EditTool {
                         let cleaned = rest.replace('L', "").replace('-', ":");
                         path_str = file_part;
                         lines = Some(cleaned);
-                    } else if spec.chars().all(|c| c.is_ascii_digit() || c == '-' || c == ':') {
+                    } else if spec
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
+                    {
                         path_str = file_part;
                         lines = Some(spec.replace('-', ":"));
                     } else if !spec.is_empty() {
@@ -1478,7 +1486,9 @@ impl Tool for EditTool {
                         target_symbol = Some(spec);
                     }
                 } else if !file_part.is_empty()
-                    && spec.chars().all(|c| c.is_ascii_digit() || c == '-' || c == ':')
+                    && spec
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
                 {
                     path_str = file_part;
                     lines = Some(spec.replace('-', ":"));
@@ -1487,7 +1497,10 @@ impl Tool for EditTool {
         }
         let mut abs = ctx.resolve(&path_str, false)?;
         if !abs.exists()
-            && (a.find.is_some() || lines.is_some() || target_symbol.is_some() || a.replace.is_some())
+            && (a.find.is_some()
+                || lines.is_some()
+                || target_symbol.is_some()
+                || a.replace.is_some())
         {
             if let Ok(resolved) = resolve_workspace_path(ctx, &path_str) {
                 if resolved.exists() {
@@ -1948,7 +1961,10 @@ pub(crate) fn resolve_workspace_path(ctx: &ToolContext<'_>, input: &str) -> Resu
     if let Ok(abs) = ctx.resolve(input, true) {
         return Ok(abs);
     }
-    let clean = input.strip_prefix("./").unwrap_or(input).trim_start_matches('/');
+    let clean = input
+        .strip_prefix("./")
+        .unwrap_or(input)
+        .trim_start_matches('/');
     if !clean.is_empty() && !clean.contains("..") {
         let walk = ctx.workspace.walk_cached_arc();
         let needle_suffix = format!("/{clean}");
@@ -1962,12 +1978,7 @@ pub(crate) fn resolve_workspace_path(ctx: &ToolContext<'_>, input: &str) -> Resu
             matches = walk
                 .files
                 .iter()
-                .filter(|f| {
-                    Path::new(&f.rel)
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        == Some(clean)
-                })
+                .filter(|f| Path::new(&f.rel).file_name().and_then(|n| n.to_str()) == Some(clean))
                 .map(|f| f.rel.as_str())
                 .collect();
         }
@@ -2063,7 +2074,10 @@ impl Tool for ExpandTool {
             }
         }
         if targets.is_empty() {
-            return Err(WErr::invalid_args("ref must not be empty", "ref=<handle_id>"));
+            return Err(WErr::invalid_args(
+                "ref must not be empty",
+                "ref=<handle_id>",
+            ));
         }
         if targets.len() > 1 {
             let mut r = ToolResult::new("expand", format!("{} handles expanded", targets.len()));
@@ -2082,7 +2096,11 @@ impl Tool for ExpandTool {
                             r.push(Item::new(
                                 ItemClass::High,
                                 5.0,
-                                vec![format!("{hid} binary {} bytes ({})", rec.bytes, hash::short(&rec.hash))],
+                                vec![format!(
+                                    "{hid} binary {} bytes ({})",
+                                    rec.bytes,
+                                    hash::short(&rec.hash)
+                                )],
                             ));
                         } else {
                             let text_cow = String::from_utf8_lossy(&bytes);
