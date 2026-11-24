@@ -17,6 +17,7 @@ pub struct HandleStore {
     next: u64,
     ttl_secs: u64,
     max_bytes: u64,
+    max_handles: usize,
     session_hash: String,
     redactor: Redactor,
 }
@@ -57,6 +58,7 @@ impl HandleStore {
             next: 1,
             ttl_secs,
             max_bytes,
+            max_handles: 500,
             session_hash,
             redactor,
         };
@@ -64,6 +66,11 @@ impl HandleStore {
         store.reload_manifest()?;
         drop(_lock);
         Ok(store)
+    }
+
+    pub fn with_max_handles(mut self, max: usize) -> Self {
+        self.max_handles = max;
+        self
     }
 
     pub fn put(&mut self, kind: &str, bytes: &[u8], content_type: &str) -> Result<HandleRef> {
@@ -236,7 +243,7 @@ impl HandleStore {
         for id in expired {
             self.remove_locked(&id);
         }
-        while self.total_bytes() > self.max_bytes {
+        while self.total_bytes() > self.max_bytes || self.handles.len() > self.max_handles {
             let victim = self
                 .handles
                 .values()
@@ -254,7 +261,7 @@ impl HandleStore {
     }
 
     fn evict_if_needed_locked(&mut self) -> Result<()> {
-        if self.total_bytes() > self.max_bytes {
+        if self.total_bytes() > self.max_bytes || self.handles.len() > self.max_handles {
             self.gc_locked();
             self.rewrite_manifest_locked()?;
         }

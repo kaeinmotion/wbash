@@ -8,7 +8,7 @@ use similar::{ChangeTag, TextDiff};
 use wxec_core::args::parse_args;
 use wxec_core::error::{Result, WErr};
 use wxec_core::registry::{Tool, ToolContext};
-use wxec_core::types::{Tier, ToolResult};
+use wxec_core::types::{HandleRef, Tier, ToolResult};
 
 use crate::util;
 
@@ -420,7 +420,17 @@ impl Tool for ReplaceTool {
             for s in file_summaries.iter().take(6).cloned() {
                 result.low(s);
             }
-            result.low(format!("...+{} files", files_changed - 6));
+            let omitted: Vec<String> = file_summaries.iter().skip(6).cloned().collect();
+            let h = ctx
+                .handles
+                .put("replace", omitted.join("\n").as_bytes(), "text")?;
+            result.low(format!("...+{} files ({})", omitted.len(), h.id));
+            result.handle(HandleRef {
+                id: h.id.clone(),
+                kind: h.kind.clone(),
+                bytes: h.bytes,
+                hash: h.hash.clone(),
+            });
         }
         result
             .meta

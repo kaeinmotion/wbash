@@ -264,7 +264,8 @@ impl Dispatcher {
                 self.config.handles.ttl_secs,
                 self.config.handles.max_bytes,
                 Redactor::new(),
-            )?;
+            )?
+            .with_max_handles(self.config.handles.max_handles);
             let now = now_ms();
             let ledger = self.load_ledger(session_id);
             self.sessions.insert(

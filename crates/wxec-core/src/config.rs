@@ -25,6 +25,7 @@ default_mod!(handles_defaults {
     ttl_secs: u64 = 86_400,
     max_bytes: u64 = 524_288_000,
     expand_max_tokens: u32 = 8000,
+    max_handles: usize = 500,
 });
 
 default_mod!(exec_defaults {
@@ -170,6 +171,7 @@ pub struct HandlesConfig {
     pub ttl_secs: u64,
     pub max_bytes: u64,
     pub expand_max_tokens: u32,
+    pub max_handles: usize,
 }
 
 impl Default for HandlesConfig {
@@ -178,6 +180,7 @@ impl Default for HandlesConfig {
             ttl_secs: handles_defaults::ttl_secs(),
             max_bytes: handles_defaults::max_bytes(),
             expand_max_tokens: handles_defaults::expand_max_tokens(),
+            max_handles: handles_defaults::max_handles(),
         }
     }
 }

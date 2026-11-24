@@ -685,6 +685,7 @@ impl Tool for ReadTool {
                 r.note(format!("clamped {spec} -> {start}:{end}"));
             }
             let mut raw = String::new();
+            let mut formatted_lines = Vec::with_capacity(count);
             for i in start..=end {
                 let l = lines[i - 1];
                 let line = if l.is_empty() {
@@ -694,8 +695,9 @@ impl Tool for ReadTool {
                 };
                 raw.push_str(&line);
                 raw.push('\n');
-                r.push(Item::new(ItemClass::MustKeep, 1.0, vec![line]));
+                formatted_lines.push(line);
             }
+            r.push(Item::new(ItemClass::MustKeep, 1.0, formatted_lines));
             r.raw_text = Some(raw);
             r.meta.counts.insert("lines".into(), count as i64);
             record_read(

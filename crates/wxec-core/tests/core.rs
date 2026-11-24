@@ -114,6 +114,19 @@ fn core_primitives() {
     let err = short.get(&h.id).unwrap_err();
     assert!(err.code == "handle_not_found" || err.code == "handle_expired");
 
+    // Handle count capacity bounding.
+    let mut bounded = HandleStore::open("bounded", &root, 3600, 10_000_000, Redactor::new())
+        .unwrap()
+        .with_max_handles(2);
+    let h1 = bounded.put("h1", b"val1", "text").unwrap();
+    let h2 = bounded.put("h2", b"val2", "text").unwrap();
+    assert!(bounded.get(&h1.id).is_ok());
+    assert!(bounded.get(&h2.id).is_ok());
+    // Adding h3 exceeds max_handles=2; oldest access (h1 was accessed before h2) should evict
+    let _h3 = bounded.put("h3", b"val3", "text").unwrap();
+    assert!(bounded.get(&h1.id).is_err());
+    assert!(bounded.get(&h2.id).is_ok());
+
     // Config trust roundtrip.
     let cfg = Config::default();
     cfg.validate().unwrap();

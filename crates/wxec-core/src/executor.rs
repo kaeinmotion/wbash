@@ -115,6 +115,9 @@ pub fn build_env(
 ) -> Result<HashMap<String, String>> {
     let mut env = get_base_env(config);
     if let Some(extra) = per_call {
+        if extra.is_empty() {
+            return Ok(env);
+        }
         for (k, v) in extra {
             if !env_allowed(&config.exec.env_allow, k) {
                 return Err(WErr::with_hint(
