@@ -12,14 +12,14 @@ Strictly and always prioritize:
 ## Dev Workflow (MCP Only)
 
 Always use `wxec` MCP tools via `call_mcp_tool(ServerName="wxec", ToolName=...)`:
-- **`read`**: Read files or line ranges (`path`, `lines`). Deduplicates repeated reads and provides token-efficient compact summaries.
-- **`edit`**: Modify files (`path`, `find`/`lines`, `replace`). Supports line-range replacements and whitespace-tolerant fuzzy anchors.
-- **`replace`**: Replace across files (`find`, `replace`, `path`, `glob`).
-- **`search`**: Search patterns across files (`pattern`, `path`, `mode`, `context`).
-- **`check`**: Run project checks (`kind: "test" | "build" | "lint" | "all"`). Bounded execution without raw shell prompts.
-- **`git`**: Git operations (`op: "status" | "diff" | "commit" | "log"`).
-- **`tree`**: List workspace directory/file hierarchy (`path`, `depth`, `dirs_only`).
-- **`batch`**: Bundle multiple tool calls into a single round-trip request (`calls: [{"tool": "...", "args": {...}}]`).
-- **`expand`**: Expand compacted handles (`id: "~h123"`).
-- **`run`**: Run project executables (`argv: ["cargo", "test", ...]`).
-- **`sh`**: Shell command execution when needed.
+- **`read`**: Read files or line ranges (`path`, `lines`, `context`, `symbol`, `paths`). Supports `#symbol` extraction, `:line` syntax, and auto-resolves unique workspace path suffixes.
+- **`edit`**: Surgical file editor (`path`, `find`/`lines`, `replace`, `occurrence`, `all`). Supports direct handle references (`replace: "~id"`), `#symbol` targeting, and auto-threads hashes across chained calls.
+- **`replace`**: Multi-file replacements (`find`, `replace`, `path`, `glob`, `word`, `regex`). Supports direct handle interpolation (`replace: "~id"`).
+- **`search`**: Search patterns across workspace (`pattern`, `path`, `mode`, `context`, `files_only`). Use `files_only: true` for ultra-low-token sweeps.
+- **`check`**: Project diagnostics and test runner (`kind: "test" | "build" | "lint" | "all"`, `filter: "<test>"`). Compact Net Digest rollup output.
+- **`git`**: Git lifecycle (`op: "status" | "diff" | "commit" | "push" | "log"`, `all`, `tags`, `ref`, `message`).
+- **`tree`**: Directory hierarchy (`path`, `depth`, `dirs_only`, `glob`, `sizes`).
+- **`batch`**: Single-turn execution of up to 16 heterogeneous calls (`calls`, `compact: true`).
+- **`expand`**: Retrieve compacted handle contents (`ref: "~id"` or `refs: ["~id1", "~id2"]`, `lines`, `head`).
+- **`run`**: Run project executables with structured argv (`argv`, `cwd`, `timeout_ms`).
+- **`sh`**: Bounded shell execution fallback when strictly necessary.
