@@ -591,12 +591,31 @@ impl Tool for ReadTool {
                         format!("try: w search pattern={sym} mode=symbol"),
                     )
                 })?;
-            let start = found.start_line.max(1).min(line_count.max(1));
+            let mut start = found.start_line.max(1).min(line_count.max(1));
             let end = found.end_line.max(start).min(line_count.max(1));
+            let mut cur = start;
+            while cur > 1 && (start - cur) < 10 {
+                let prev = lines[cur - 2].trim_start();
+                if prev.starts_with("///")
+                    || prev.starts_with("//!")
+                    || prev.starts_with("#[")
+                    || prev.starts_with('@')
+                    || prev.starts_with("/**")
+                    || prev.starts_with('*')
+                    || prev.starts_with("*/")
+                    || prev.starts_with("\"\"\"")
+                {
+                    cur -= 1;
+                } else {
+                    break;
+                }
+            }
+            start = cur;
             let mut r = ToolResult::new(
                 "read",
                 format!("{display}:{start}-{end} {} ({short})", found.name),
             );
+            let mut formatted_lines = Vec::with_capacity(end - start + 1);
             for i in start..=end {
                 let l = lines[i - 1];
                 let formatted = if l.is_empty() {
@@ -604,8 +623,9 @@ impl Tool for ReadTool {
                 } else {
                     format!("{i}: {l}")
                 };
-                r.low(formatted);
+                formatted_lines.push(formatted);
             }
+            r.push(Item::new(ItemClass::Low, 5.0, formatted_lines));
             r.meta
                 .counts
                 .insert("lines".into(), (end - start + 1) as i64);
@@ -638,10 +658,12 @@ impl Tool for ReadTool {
             if outline.heuristic {
                 r.note("heuristic_outline");
             }
+            let mut formatted_symbols = Vec::with_capacity(outline.symbols.len());
             for s in &outline.symbols {
                 let pad = " ".repeat(s.indent.min(40));
-                r.low(format!("{pad}{}: {} {}", s.start_line, s.kind, s.name));
+                formatted_symbols.push(format!("{pad}{}: {} {}", s.start_line, s.kind, s.name));
             }
+            r.push(Item::new(ItemClass::Low, 5.0, formatted_symbols));
             r.meta
                 .counts
                 .insert("symbols".into(), outline.symbols.len() as i64);
@@ -828,25 +850,12 @@ impl Tool for ReadTool {
         if let Some(prev) = &previous {
             if let Some(snap) = &prev.snapshot_ref {
                 if let Ok((bytes, _)) = ctx.handles.get(snap) {
-                    if let Ok(old) = std::str::from_utf8(&bytes) {
-                        let diff_lines = render_diff(old, &text);
-                        if wxec_core::estimator::estimate_lines(&diff_lines) < full_text_est {
-                            used_diff = true;
-                            r.header = format!("{display} diff ({short})");
-                            for line in diff_lines {
-                                r.push(Item::new(ItemClass::High, 6.0, vec![line]));
-                            }
-                        }
-                    } else {
-                        let old = String::from_utf8_lossy(&bytes);
-                        let diff_lines = render_diff(&old, &text);
-                        if wxec_core::estimator::estimate_lines(&diff_lines) < full_text_est {
-                            used_diff = true;
-                            r.header = format!("{display} diff ({short})");
-                            for line in diff_lines {
-                                r.push(Item::new(ItemClass::High, 6.0, vec![line]));
-                            }
-                        }
+                    let old_cow = String::from_utf8_lossy(&bytes);
+                    let diff_lines = render_diff(&old_cow, &text);
+                    if wxec_core::estimator::estimate_lines(&diff_lines) < full_text_est {
+                        used_diff = true;
+                        r.header = format!("{display} diff ({short})");
+                        r.push(Item::new(ItemClass::High, 6.0, diff_lines));
                     }
                 }
             }
