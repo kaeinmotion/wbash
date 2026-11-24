@@ -29,6 +29,77 @@ traditional terminal agents consume excessive tokens parsing unstructured termin
 - **simd workspace cache**: in-memory directory index utilizing vectorized substring pre-matching (`memmem`), executing workspace-wide searches in sub-millisecond durations.
 - **calibrated budget fitting**: prioritizes actionable diagnostics, compilation errors, and exact line references while compressing ambient noise into handles.
 
+#### **system architecture**
+
+```mermaid
+flowchart TD
+    subgraph Agent["LLM Coding Agent (Claude / Cursor / Windsurf / Gemini)"]
+        A[Agent Task Context]
+    end
+
+    subgraph MCP["MCP Runtime Boundary (JSON-RPC over stdio)"]
+        B["tools/call (batch / read / edit / replace / search / check / git / tree / expand)"]
+    end
+
+    subgraph WXEC["wxec Execution Engine"]
+        direction TB
+        P[Policy & Tier Boundary] --> Router[Tool Router & Dispatcher]
+        
+        Router --> Suffix["Suffix & Fuzzy Path Resolver\n('fs.rs' -> 'crates/.../fs.rs')"]
+        Router --> Ledger["Session Hash Ledger\n(Blake3 digest tracking)"]
+        Router --> Handles["Lossless Handle Store\n(~id memory cache)"]
+        Router --> Batch["Batch Executor & Hash Threader\n(Atomic multi-step chaining)"]
+        Router --> Formatter["Calibrated Budget Fitting & Net Digest Rollup"]
+    end
+
+    subgraph Workspace["Local Workspace & Filesystem"]
+        FS[Files & Dirs]
+        GitRepo[Git Subsystem]
+        Build[Compilers & Test Runners]
+    end
+
+    A -->|"1. Structured MCP Invocation"| B
+    B --> P
+    Suffix --> FS
+    Ledger -->|"27-tok unchanged ack"| Formatter
+    Handles <-->|"Zero-copy ~id interpolation"| Suffix
+    Batch --> FS
+    Batch --> GitRepo
+    Batch --> Build
+    FS & GitRepo & Build -->|"Raw Diffs & Diagnostics"| Formatter
+    Formatter -->|"Exceeds Budget"| Handles
+    Formatter -->|"2. Net Digest Rollup"| B
+    B -->|"3. High-Density Response (-83.7% tokens)"| A
+```
+
+#### **handle lifecycle & zero-copy interpolation**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Agent as LLM Agent
+    participant WXEC as wxec Engine
+    participant Store as Session Handle Store
+    participant FS as Workspace Disk
+
+    Agent->>WXEC: read path="big_file.rs" (or search / check)
+    WXEC->>FS: Read file contents
+    Note over WXEC: Output exceeds token budget
+    WXEC->>Store: Store full text in memory buffer -> ~h1
+    WXEC-->>Agent: Head lines + "...+N more (~h1)"
+
+    alt Targeted Drill-Down
+        Agent->>WXEC: expand refs=["~h1"] lines="50:60"
+        WXEC->>Store: Slice exact range from ~h1
+        WXEC-->>Agent: Lines 50-60 only
+    else Zero-Copy Code Mutation
+        Agent->>WXEC: replace path="target.rs" find="placeholder" replace="~h1"
+        WXEC->>Store: Fetch ~h1 directly in memory
+        WXEC->>FS: Splice ~h1 into target.rs on disk
+        WXEC-->>Agent: edited target.rs (+N -1)
+    end
+```
+
 measured across real-world developer workflows using the standard `cl100k_base` tokenizer:
 
 | task | raw shell | rtk (0.37.2) | wxec mcp | token savings vs raw |

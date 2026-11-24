@@ -18,6 +18,15 @@ ultra-low-token model context protocol (mcp) execution engine for AI coding agen
 - **targeted test filtering**: `check` selectively passes test filters (`filter: "<test>"`) exclusively to test runners, finishing in $<1.5$s.
 - **strict schema budgeting**: all 9 tool schemas stay strictly under ~1,450 tokens.
 
+```mermaid
+flowchart LR
+    Agent[LLM Agent] <-->|"MCP JSON-RPC (stdio)"| WXEC["wxec Engine\n(<1,450 token schema)"]
+    WXEC <-->|"Session Ledger\n(Blake3 digest)"| Ledger[(Hash Ledger)]
+    WXEC <-->|"Memory Buffers\n(~id handles)"| Handles[(Handle Store)]
+    WXEC <-->|"Fuzzy Suffix\nResolution"| Disk[(Workspace Files)]
+    WXEC -->|"Single-Turn Net Digest"| Rollup[Rollup Output]
+```
+
 ---
 
 ## documentation
