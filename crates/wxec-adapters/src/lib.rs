@@ -115,20 +115,24 @@ pub fn serve_stdio(
     let mut server = McpServer::open(root, config_path, no_project_config, tier)?;
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
-    let mut out = stdout.lock();
-    for line in stdin.lock().lines() {
-        let line = match line {
-            Ok(l) => l,
+    let mut reader = std::io::BufReader::with_capacity(64 * 1024, stdin.lock());
+    let mut out = std::io::BufWriter::with_capacity(64 * 1024, stdout.lock());
+    let mut line = String::new();
+    loop {
+        line.clear();
+        match reader.read_line(&mut line) {
+            Ok(0) => break,
+            Ok(_) => {}
             Err(e) => return Err(WErr::internal(format!("stdin: {e}"))),
-        };
-        let line = line.trim();
-        if line.is_empty()
-            || line.starts_with("Content-Length:")
-            || line.starts_with("Content-Type:")
+        }
+        let trimmed = line.trim();
+        if trimmed.is_empty()
+            || trimmed.starts_with("Content-Length:")
+            || trimmed.starts_with("Content-Type:")
         {
             continue;
         }
-        let msg: Value = match serde_json::from_str(line) {
+        let msg: Value = match serde_json::from_str(trimmed) {
             Ok(v) => v,
             Err(e) => {
                 let err = json!({
@@ -136,13 +140,19 @@ pub fn serve_stdio(
                     "id": Value::Null,
                     "error": {"code": -32700, "message": format!("parse error: {e}")}
                 });
-                writeln!(out, "{err}").map_err(|e| WErr::internal(format!("stdout: {e}")))?;
+                serde_json::to_writer(&mut out, &err)
+                    .map_err(|e| WErr::internal(format!("stdout: {e}")))?;
+                out.write_all(b"\n")
+                    .map_err(|e| WErr::internal(format!("stdout: {e}")))?;
                 out.flush().ok();
                 continue;
             }
         };
         if let Some(resp) = server.handle(&msg) {
-            writeln!(out, "{resp}").map_err(|e| WErr::internal(format!("stdout: {e}")))?;
+            serde_json::to_writer(&mut out, &resp)
+                .map_err(|e| WErr::internal(format!("stdout: {e}")))?;
+            out.write_all(b"\n")
+                .map_err(|e| WErr::internal(format!("stdout: {e}")))?;
             out.flush().ok();
         }
     }

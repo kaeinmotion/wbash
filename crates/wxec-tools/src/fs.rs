@@ -106,11 +106,7 @@ impl Tool for TreeTool {
             if rel.is_empty() {
                 continue;
             }
-            let parts: Vec<&str> = rel.split('/').filter(|p| !p.is_empty()).collect();
-            if parts.is_empty() {
-                continue;
-            }
-            root.insert(&parts, f.size);
+            root.insert_path(rel, f.size);
         }
 
         let mut result = ToolResult::new(
@@ -150,14 +146,20 @@ struct DirNode {
 }
 
 impl DirNode {
-    fn insert(&mut self, parts: &[&str], size: u64) {
-        if parts.len() == 1 {
-            self.files.push((parts[0].to_string(), size));
-        } else {
-            self.dirs
-                .entry(parts[0].to_string())
-                .or_default()
-                .insert(&parts[1..], size);
+    fn insert_path(&mut self, rel: &str, size: u64) {
+        let clean = rel.trim_start_matches('/');
+        if let Some((first, rest)) = clean.split_once('/') {
+            let rest_trimmed = rest.trim_start_matches('/');
+            if rest_trimmed.is_empty() {
+                self.files.push((first.to_string(), size));
+            } else {
+                self.dirs
+                    .entry(first.to_string())
+                    .or_default()
+                    .insert_path(rest_trimmed, size);
+            }
+        } else if !clean.is_empty() {
+            self.files.push((clean.to_string(), size));
         }
     }
 

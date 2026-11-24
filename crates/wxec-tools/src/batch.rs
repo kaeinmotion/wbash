@@ -191,10 +191,10 @@ impl Tool for BatchTool {
                                 used_items_tokens.saturating_add(estimator::estimate_text(&header));
                             used_items_tokens = used_items_tokens
                                 .saturating_add(estimator::estimate_text(&rendered.text));
+                            let line_strings: Vec<String> =
+                                lines.iter().map(|s| (*s).to_string()).collect();
                             result.push(Item::new(ItemClass::High, 5.0, vec![header]));
-                            for line in lines {
-                                result.low(line.to_string());
-                            }
+                            result.push(Item::new(ItemClass::Low, 5.0, line_strings));
                         }
                     }
                     for h in &child.handles {

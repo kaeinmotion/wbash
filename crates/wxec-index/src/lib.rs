@@ -239,8 +239,12 @@ impl Workspace {
             .parents(true)
             .sort_by_file_name(|a, b| a.cmp(b))
             .filter_entry(|e| {
-                let name = e.file_name().to_string_lossy();
-                !(e.file_type().map(|t| t.is_dir()).unwrap_or(false) && is_builtin_ignored(&name))
+                if e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                    if let Some(s) = e.file_name().to_str() {
+                        return !is_builtin_ignored(s);
+                    }
+                }
+                true
             });
 
         let mut files = Vec::new();
