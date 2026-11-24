@@ -760,4 +760,39 @@ fn test_ergonomic_tool_features() {
         "compact batch should suppress per-step headers: {}",
         batch_compact.text
     );
+
+    // 31. Suffix and fuzzy workspace path resolution in read and edit
+    let nested_dir = root.join("nested").join("sub");
+    std::fs::create_dir_all(&nested_dir).unwrap();
+    std::fs::write(nested_dir.join("unique_target.rs"), "fn unique_test() {}\n").unwrap();
+    let read_fuzzy = call(&mut d, "read", json!({"path": "unique_target.rs"}));
+    assert!(read_fuzzy.ok, "{}", read_fuzzy.text);
+    assert!(read_fuzzy.text.contains("fn unique_test()"));
+
+    let edit_fuzzy = call(&mut d, "edit", json!({
+        "path": "unique_target.rs",
+        "find": "unique_test",
+        "replace": "fuzzy_edited_test"
+    }));
+    assert!(edit_fuzzy.ok, "{}", edit_fuzzy.text);
+    let verify_fuzzy_edit = call(&mut d, "read", json!({"path": "nested/sub/unique_target.rs"}));
+    assert!(verify_fuzzy_edit.text.contains("fuzzy_edited_test"));
+
+    // 32. read with context around line
+    let context_file = root.join("context_sample.txt");
+    std::fs::write(&context_file, (1..=20).map(|i| format!("line {i}\n")).collect::<String>()).unwrap();
+    let read_ctx = call(&mut d, "read", json!({"path": "context_sample.txt", "lines": "10:10", "context": 2}));
+    assert!(read_ctx.ok, "{}", read_ctx.text);
+    assert!(read_ctx.text.contains("8: line 8"));
+    assert!(read_ctx.text.contains("10: line 10"));
+    assert!(read_ctx.text.contains("12: line 12"));
+    assert!(!read_ctx.text.contains("7: line 7"));
+    assert!(!read_ctx.text.contains("13: line 13"));
+
+    // 33. expand with refs array without requiring single ref
+    let r1 = call(&mut d, "read", json!({"path": "big.txt", "budget": 64}));
+    let h1 = handle_id(&r1.text);
+    let expand_refs = call(&mut d, "expand", json!({"refs": [h1]}));
+    assert!(expand_refs.ok, "{}", expand_refs.text);
+    assert!(expand_refs.text.contains("handles expanded"));
 }

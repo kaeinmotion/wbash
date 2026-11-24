@@ -366,6 +366,8 @@ struct ReadArgs {
     expect_hash: Option<String>,
     #[serde(default)]
     force: bool,
+    #[serde(alias = "around")]
+    context: Option<usize>,
 }
 
 impl Tool for ReadTool {
@@ -383,8 +385,9 @@ impl Tool for ReadTool {
             "type": "object",
             "properties": {
                 "path": {"type": "string"},
-                "paths": {"type": "array", "items": {"type": "string"}},
+                "paths": {"type": "array"},
                 "lines": {"type": ["string", "array"]},
+                "context": {"type": "integer"},
                 "symbol": {"type": "string"},
                 "outline": {"type": "boolean"},
                 "expect_hash": {"type": "string"},
@@ -473,7 +476,8 @@ impl Tool for ReadTool {
                 "read path=<file>",
             ));
         }
-        let abs = ctx.resolve(&a.path, true)?;
+        let abs = resolve_workspace_path(ctx, &a.path)?;
+        a.path = ctx.rel(&abs);
         if abs.is_dir() {
             if let Some(tree_tool) = ctx.registry.get("tree") {
                 return tree_tool.call(&json!({"path": a.path, "depth": 2}), ctx);
@@ -592,7 +596,11 @@ impl Tool for ReadTool {
                     )
                 })?;
             let mut start = found.start_line.max(1).min(line_count.max(1));
-            let end = found.end_line.max(start).min(line_count.max(1));
+            let mut end = found.end_line.max(start).min(line_count.max(1));
+            if let Some(ctx_lines) = a.context {
+                start = start.saturating_sub(ctx_lines).max(1);
+                end = (end + ctx_lines).min(line_count);
+            }
             let mut cur = start;
             while cur > 1 && (start - cur) < 10 {
                 let prev = lines[cur - 2].trim_start();
@@ -682,7 +690,11 @@ impl Tool for ReadTool {
         }
 
         if let Some(spec) = &a.lines {
-            let (start, end) = parse_line_range_clamped(spec, line_count)?;
+            let (mut start, mut end) = parse_line_range_clamped(spec, line_count)?;
+            if let Some(ctx_lines) = a.context {
+                start = start.saturating_sub(ctx_lines).max(1);
+                end = (end + ctx_lines).min(line_count);
+            }
             let count = end - start + 1;
             let range_str = if start == end {
                 format!("{start}")
@@ -1473,7 +1485,16 @@ impl Tool for EditTool {
                 }
             }
         }
-        let abs = ctx.resolve(&path_str, false)?;
+        let mut abs = ctx.resolve(&path_str, false)?;
+        if !abs.exists()
+            && (a.find.is_some() || lines.is_some() || target_symbol.is_some() || a.replace.is_some())
+        {
+            if let Ok(resolved) = resolve_workspace_path(ctx, &path_str) {
+                if resolved.exists() {
+                    abs = resolved;
+                }
+            }
+        }
         let display = ctx.rel(&abs);
         let find = match a.find.as_deref() {
             Some(f) => Some(resolve_content_or_handle(ctx, f)?),
@@ -1922,6 +1943,40 @@ fn resolve_content_or_handle(ctx: &mut ToolContext<'_>, val: &str) -> Result<Str
     }
     Ok(val.to_string())
 }
+
+pub(crate) fn resolve_workspace_path(ctx: &ToolContext<'_>, input: &str) -> Result<PathBuf> {
+    if let Ok(abs) = ctx.resolve(input, true) {
+        return Ok(abs);
+    }
+    let clean = input.strip_prefix("./").unwrap_or(input).trim_start_matches('/');
+    if !clean.is_empty() && !clean.contains("..") {
+        let walk = ctx.workspace.walk_cached_arc();
+        let needle_suffix = format!("/{clean}");
+        let mut matches: Vec<&str> = walk
+            .files
+            .iter()
+            .filter(|f| f.rel == clean || f.rel.ends_with(&needle_suffix))
+            .map(|f| f.rel.as_str())
+            .collect();
+        if matches.is_empty() && !clean.contains('/') {
+            matches = walk
+                .files
+                .iter()
+                .filter(|f| {
+                    Path::new(&f.rel)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        == Some(clean)
+                })
+                .map(|f| f.rel.as_str())
+                .collect();
+        }
+        if matches.len() == 1 {
+            return ctx.resolve(matches[0], true);
+        }
+    }
+    ctx.resolve(input, true)
+}
 // expand
 // ---------------------------------------------------------------------------
 
@@ -1983,7 +2038,6 @@ impl Tool for ExpandTool {
                 "all": {"type": "boolean"},
                 "depth": {"type": "integer"}
             },
-            "required": ["ref"],
             "additionalProperties": false
         })
     }

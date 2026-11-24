@@ -149,14 +149,15 @@ impl Tool for SearchTool {
         let mut cache_bases = bases_rel.clone();
         cache_bases.sort();
         let cache_key = format!(
-            "{}\0{}\0{}\0{}\0{}\0{}\0{}",
+            "{}\0{}\0{}\0{}\0{}\0{}\0{}\0{}",
             a.pattern,
             a.mode,
             cache_bases.join("\0"),
             a.glob.clone().unwrap_or_default(),
             a.context,
             limit,
-            a.stats
+            a.stats,
+            a.files_only
         );
         if let Some(seen) = ctx
             .ledger
