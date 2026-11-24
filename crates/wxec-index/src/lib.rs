@@ -616,21 +616,24 @@ pub fn read_text(abs: &Path) -> std::io::Result<TextFile> {
             encoding: None,
         });
     }
-    if let Ok(s) = std::str::from_utf8(&bytes) {
-        return Ok(TextFile {
-            content: s.to_string(),
+    match String::from_utf8(bytes) {
+        Ok(content) => Ok(TextFile {
+            content,
             binary: false,
             size,
             encoding: Some(TextEncoding::Utf8),
-        });
+        }),
+        Err(err) => {
+            let raw = err.into_bytes();
+            let content: String = raw.iter().map(|&b| b as char).collect();
+            Ok(TextFile {
+                content,
+                binary: false,
+                size,
+                encoding: Some(TextEncoding::Latin1),
+            })
+        }
     }
-    let content: String = bytes.iter().map(|&b| b as char).collect();
-    Ok(TextFile {
-        content,
-        binary: false,
-        size,
-        encoding: Some(TextEncoding::Latin1),
-    })
 }
 
 pub fn encode_text(text: &str, encoding: TextEncoding) -> std::io::Result<Vec<u8>> {

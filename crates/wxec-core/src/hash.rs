@@ -5,8 +5,8 @@ pub fn hash_bytes(bytes: &[u8]) -> String {
 }
 
 pub fn short(full_hex: &str) -> String {
-    let s: String = full_hex.chars().take(16).collect();
-    format!("b3:{s}")
+    let prefix = &full_hex[..16.min(full_hex.len())];
+    format!("b3:{prefix}")
 }
 
 pub fn hash_str(s: &str) -> String {

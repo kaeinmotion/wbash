@@ -674,12 +674,19 @@ fn scan_lines(
                 let is_definition = looks_like_definition(line);
                 let mut score = if is_definition { 8 } else { 3 };
                 if a.mode != "regex" && matches!(matcher, MatchMode::Literal(_)) {
-                    let line_lc = line.to_ascii_lowercase();
-                    if line_lc.contains(pat_near)
-                        || line_lc.starts_with(pat_lc)
-                        || line_lc.ends_with(pat_lc)
-                    {
+                    let starts = line
+                        .get(..pat_lc.len())
+                        .is_some_and(|s| s.eq_ignore_ascii_case(pat_lc));
+                    let ends = line
+                        .get(line.len().saturating_sub(pat_lc.len())..)
+                        .is_some_and(|s| s.eq_ignore_ascii_case(pat_lc));
+                    if starts || ends {
                         score += 2;
+                    } else {
+                        let line_lc = line.to_ascii_lowercase();
+                        if line_lc.contains(pat_near) {
+                            score += 2;
+                        }
                     }
                 }
                 score += file_path_boost;
