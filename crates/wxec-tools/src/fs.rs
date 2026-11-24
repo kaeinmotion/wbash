@@ -408,29 +408,32 @@ impl Tool for ReadTool {
                 .map(|p| p.exists())
                 .unwrap_or(false)
         {
-            let split_spec = if let Some((file_part, line_part)) = a.path.rsplit_once('#') {
-                if let Some(rest) = line_part.strip_prefix('L') {
-                    let cleaned = rest.replace('L', "").replace('-', ":");
-                    Some((file_part.to_string(), cleaned))
-                } else {
-                    None
-                }
+            let parsed = if let Some((file_part, sym_or_lines)) = a.path.rsplit_once('#') {
+                Some((file_part.to_string(), sym_or_lines.to_string(), true))
             } else if let Some((file_part, line_part)) = a.path.rsplit_once(':') {
-                if !file_part.is_empty()
-                    && line_part
-                        .chars()
-                        .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
-                {
-                    Some((file_part.to_string(), line_part.to_string()))
-                } else {
-                    None
-                }
+                Some((file_part.to_string(), line_part.to_string(), false))
             } else {
                 None
             };
-            if let Some((f, l)) = split_spec {
-                a.path = f;
-                a.lines = Some(l);
+            if let Some((file_part, spec, is_hash)) = parsed {
+                if is_hash {
+                    if let Some(rest) = spec.strip_prefix('L') {
+                        let cleaned = rest.replace('L', "").replace('-', ":");
+                        a.path = file_part;
+                        a.lines = Some(cleaned);
+                    } else if spec.chars().all(|c| c.is_ascii_digit() || c == '-' || c == ':') {
+                        a.path = file_part;
+                        a.lines = Some(spec.replace('-', ":"));
+                    } else if a.symbol.is_none() && !spec.is_empty() {
+                        a.path = file_part;
+                        a.symbol = Some(spec);
+                    }
+                } else if !file_part.is_empty()
+                    && spec.chars().all(|c| c.is_ascii_digit() || c == '-' || c == ':')
+                {
+                    a.path = file_part;
+                    a.lines = Some(spec.replace('-', ":"));
+                }
             }
         }
         if a.lines.is_none() && (a.start_line.is_some() || a.end_line.is_some()) {
@@ -1426,35 +1429,39 @@ impl Tool for EditTool {
             path_str = rest.to_string();
         }
         let mut lines = a.lines.clone();
+        let mut target_symbol: Option<String> = None;
         if lines.is_none()
             && !ctx
                 .resolve(&path_str, false)
                 .map(|p| p.exists())
                 .unwrap_or(false)
         {
-            let split_spec = if let Some((file_part, line_part)) = path_str.rsplit_once('#') {
-                if let Some(rest) = line_part.strip_prefix('L') {
-                    let cleaned = rest.replace('L', "").replace('-', ":");
-                    Some((file_part.to_string(), cleaned))
-                } else {
-                    None
-                }
+            let parsed = if let Some((file_part, sym_or_lines)) = path_str.rsplit_once('#') {
+                Some((file_part.to_string(), sym_or_lines.to_string(), true))
             } else if let Some((file_part, line_part)) = path_str.rsplit_once(':') {
-                if !file_part.is_empty()
-                    && line_part
-                        .chars()
-                        .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
-                {
-                    Some((file_part.to_string(), line_part.to_string()))
-                } else {
-                    None
-                }
+                Some((file_part.to_string(), line_part.to_string(), false))
             } else {
                 None
             };
-            if let Some((f, l)) = split_spec {
-                path_str = f;
-                lines = Some(l);
+            if let Some((file_part, spec, is_hash)) = parsed {
+                if is_hash {
+                    if let Some(rest) = spec.strip_prefix('L') {
+                        let cleaned = rest.replace('L', "").replace('-', ":");
+                        path_str = file_part;
+                        lines = Some(cleaned);
+                    } else if spec.chars().all(|c| c.is_ascii_digit() || c == '-' || c == ':') {
+                        path_str = file_part;
+                        lines = Some(spec.replace('-', ":"));
+                    } else if !spec.is_empty() {
+                        path_str = file_part;
+                        target_symbol = Some(spec);
+                    }
+                } else if !file_part.is_empty()
+                    && spec.chars().all(|c| c.is_ascii_digit() || c == '-' || c == ':')
+                {
+                    path_str = file_part;
+                    lines = Some(spec.replace('-', ":"));
+                }
             }
         }
         let abs = ctx.resolve(&path_str, false)?;
@@ -1671,6 +1678,10 @@ impl Tool for EditTool {
                 let count = old.lines().count().max(1);
                 if let Ok((start, _)) = parse_line_range_clamped(spec, count) {
                     near_line = Some(start);
+                }
+            } else if let Some(sym) = &target_symbol {
+                if let Some(found) = ctx.symbols.find_symbol(&abs, &old, sym) {
+                    near_line = Some(found.start_line);
                 }
             }
         }

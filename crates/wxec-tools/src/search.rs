@@ -31,6 +31,14 @@ struct SearchArgs {
         deserialize_with = "wxec_core::args::deserialize_u32_opt_lenient"
     )]
     limit: Option<u32>,
+    #[serde(
+        default,
+        alias = "files_only",
+        alias = "names_only",
+        alias = "name_only",
+        alias = "only_files"
+    )]
+    files_only: bool,
     #[serde(default)]
     stats: bool,
     #[serde(default, alias = "ignore_case", alias = "case_insensitive")]
@@ -92,6 +100,7 @@ impl Tool for SearchTool {
                 "glob": {"type": "string"},
                 "context": {"type": "integer", "minimum": 0, "maximum": 20, "default": 0},
                 "limit": {"type": "integer", "minimum": 1},
+                "files_only": {"type": "boolean"},
                 "stats": {"type": "boolean", "default": false},
                 "case_insensitive": {"type": "boolean"}
             },
@@ -273,6 +282,23 @@ impl Tool for SearchTool {
         });
 
         let total = hits.len();
+        if a.files_only {
+            let mut file_set = std::collections::BTreeSet::new();
+            for h in &hits {
+                file_set.insert(h.path.clone());
+            }
+            let mut result = ToolResult::new(
+                "search",
+                format!(
+                    "{} with matches",
+                    util::plural(file_set.len(), "file")
+                ),
+            );
+            let lines: Vec<String> = file_set.into_iter().collect();
+            result.push(Item::new(ItemClass::MustKeep, 1.0, lines));
+            result.meta.counts.insert("files".into(), total as i64);
+            return Ok(result);
+        }
         let truncated = total > limit as usize;
         let returned = hits.len().min(limit as usize);
         let omitted_body = if truncated {
@@ -649,6 +675,18 @@ fn scan_lines(
         if !file_has_match {
             continue;
         }
+        if a.files_only {
+            stats.files_with_hits += 1;
+            hits.push(Hit {
+                path: f.rel.clone(),
+                line: 1,
+                col: 1,
+                snippet: String::new(),
+                is_definition: false,
+                score: 1,
+            });
+            continue;
+        }
 
         let path_lc = f.rel.to_ascii_lowercase();
         let file_path_boost = path_boost_lc(&path_lc, pat_lc);
@@ -781,5 +819,12 @@ mod tests {
         assert!(looks_like_definition("something export const X = 1;"));
         assert!(!looks_like_definition("let x = fn_call();"));
         assert!(!looks_like_definition("println!(\"definitely not\");"));
+    }
+
+    #[test]
+    fn test_format_line_numbers() {
+        assert_eq!(format_line_numbers(&[1, 2, 3, 4, 5]), "1-5");
+        assert_eq!(format_line_numbers(&[1, 3, 4, 5, 8]), "1,3-5,8");
+        assert_eq!(format_line_numbers(&[42]), "42");
     }
 }
