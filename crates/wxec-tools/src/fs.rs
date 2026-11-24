@@ -1084,7 +1084,10 @@ fn fuzzy_match_anchor_all(old: &str, find: &str) -> Vec<(usize, usize)> {
     if find_trimmed_lines.is_empty() {
         return Vec::new();
     }
-    let mut old_lines = Vec::new();
+    if !old.contains(find_trimmed_lines[0]) {
+        return Vec::new();
+    }
+    let mut old_lines = Vec::with_capacity(32);
     let mut offset = 0;
     for line in old.split_inclusive('\n') {
         let trimmed = line.trim();

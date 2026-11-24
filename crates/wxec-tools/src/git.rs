@@ -439,7 +439,7 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
         let mut seen_file = std::collections::HashSet::new();
         let display_limit = 60usize;
         let mut emitted_changes = 0usize;
-        let mut omitted_lines = Vec::new();
+        let mut omitted_count = 0usize;
         for line in text.lines() {
             if let Some(rest) = line.strip_prefix("diff --git ") {
                 files += 1;
@@ -477,7 +477,7 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
                     emitted_changes += 1;
                     r.low(format!("+{rest}"));
                 } else {
-                    omitted_lines.push(format!("+{rest}"));
+                    omitted_count += 1;
                 }
             } else if let Some(rest) = line.strip_prefix('-') {
                 minus += 1;
@@ -485,13 +485,13 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
                     emitted_changes += 1;
                     r.low(format!("-{rest}"));
                 } else {
-                    omitted_lines.push(format!("-{rest}"));
+                    omitted_count += 1;
                 }
             } else if line == "\\ No newline at end of file" && emitted_changes < display_limit {
                 r.low(line.to_string());
             }
         }
-        if !omitted_lines.is_empty() {
+        if omitted_count > 0 {
             let h = ctx.handles.put("diff", text.as_bytes(), "text")?;
             r.handle(HandleRef {
                 id: h.id.clone(),
@@ -499,7 +499,7 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
                 bytes: h.bytes,
                 hash: h.hash.clone(),
             });
-            r.low(format!("...+{} lines ({})", omitted_lines.len(), h.id));
+            r.low(format!("...+{omitted_count} lines ({})", h.id));
         }
         r.header = if text.trim().is_empty() {
             "0 changed, +0 -0".to_string()
@@ -609,6 +609,9 @@ fn show(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
     let mut plus = 0usize;
     let mut minus = 0usize;
     let mut commit_summary = None;
+    let display_limit = 60usize;
+    let mut emitted_changes = 0usize;
+    let mut omitted_count = 0usize;
     for line in text.lines() {
         if commit_summary.is_none() {
             let t = line.trim();
@@ -626,11 +629,15 @@ fn show(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
                 .unwrap_or(line)
                 .trim()
                 .to_string();
-            r.high(name);
+            if emitted_changes < display_limit {
+                r.high(name);
+            }
             continue;
         }
         if line.starts_with("@@") {
-            r.high(line.to_string());
+            if emitted_changes < display_limit {
+                r.high(line.to_string());
+            }
             continue;
         }
         if line.starts_with("index ")
@@ -650,14 +657,34 @@ fn show(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
         }
         if line.starts_with('+') {
             plus += 1;
-            r.low(line.to_string());
+            if emitted_changes < display_limit {
+                emitted_changes += 1;
+                r.low(line.to_string());
+            } else {
+                omitted_count += 1;
+            }
             continue;
         }
         if line.starts_with('-') {
             minus += 1;
-            r.low(line.to_string());
+            if emitted_changes < display_limit {
+                emitted_changes += 1;
+                r.low(line.to_string());
+            } else {
+                omitted_count += 1;
+            }
             continue;
         }
+    }
+    if omitted_count > 0 {
+        let h = ctx.handles.put("show", text.as_bytes(), "text")?;
+        r.handle(HandleRef {
+            id: h.id.clone(),
+            kind: h.kind.clone(),
+            bytes: h.bytes,
+            hash: h.hash.clone(),
+        });
+        r.low(format!("...+{omitted_count} lines ({})", h.id));
     }
     if let Some(s) = commit_summary {
         r.must(s);

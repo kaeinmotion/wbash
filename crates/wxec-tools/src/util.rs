@@ -136,6 +136,9 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
 }
 
 pub fn strip_ansi(input: &str) -> String {
+    if !input.contains('\x1b') && !input.contains('\r') {
+        return input.to_string();
+    }
     let mut out = String::with_capacity(input.len());
     let mut chars = input.chars().peekable();
     while let Some(c) = chars.next() {
