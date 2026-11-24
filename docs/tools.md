@@ -293,7 +293,7 @@ every error emitted by wxec includes an actionable recovery hint:
 
 | error code | root cause | actionable recovery hint |
 | :--- | :--- | :--- |
-| `outside_workspace` | path escapes configured workspace root | adjust path to reside inside workspace |
+| `outside_workspace` | path escapes configured workspace root | adjust path to reside inside workspace or allow via `WXEC_ALLOW_PATHS` / `policy.path_allowlist` |
 | `ambiguous_anchor` | `find` string matches multiple locations | specify line numbers via `lines` or expand anchor context |
 | `anchor_not_found` | `find` string was not found in target file | verify file contents via `read` before editing |
 | `hash_mismatch` | file was modified concurrently | fetch latest version with `read force=true` |

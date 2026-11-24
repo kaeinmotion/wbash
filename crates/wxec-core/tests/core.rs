@@ -46,12 +46,20 @@ fn core_primitives() {
     let croot = root.canonicalize().unwrap();
     std::fs::write(croot.join("a.txt"), "hello").unwrap();
     assert!(policy::resolve(&croot, "a.txt", &[], true).is_ok());
-    assert_eq!(
-        policy::resolve(&croot, "../escape", &[], false)
-            .unwrap_err()
-            .code,
-        "outside_workspace"
-    );
+    let outside_err = policy::resolve(&croot, "../escape", &[], false).unwrap_err();
+    assert_eq!(outside_err.code, "outside_workspace");
+    assert!(outside_err.hint.as_deref().unwrap_or("").contains("WXEC_ALLOW_PATHS"));
+
+    // Verify WXEC_ALLOW_PATHS dynamic allowlisting
+    let outside_dir = temp_dir("outside");
+    let coutside = outside_dir.canonicalize().unwrap();
+    std::fs::write(coutside.join("allowed.txt"), "allowed").unwrap();
+    let cfg = Config::default();
+    assert!(!cfg.allowlist_paths().contains(&coutside));
+    std::env::set_var("WXEC_ALLOW_PATHS", coutside.to_str().unwrap());
+    assert!(cfg.allowlist_paths().contains(&coutside));
+    assert!(policy::resolve(&croot, coutside.join("allowed.txt").to_str().unwrap(), &cfg.allowlist_paths(), true).is_ok());
+    std::env::remove_var("WXEC_ALLOW_PATHS");
 
     assert!(parse_line_range("1:99", 3).is_err());
     assert_eq!(parse_line_range("10", 20).unwrap(), (10, 10));

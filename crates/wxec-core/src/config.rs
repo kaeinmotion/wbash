@@ -404,11 +404,27 @@ impl Config {
     }
 
     pub fn allowlist_paths(&self) -> Vec<PathBuf> {
-        self.policy
+        let mut paths: Vec<PathBuf> = self
+            .policy
             .path_allowlist
             .iter()
             .filter_map(|p| paths::canonicalize_lenient(Path::new(p)).ok())
-            .collect()
+            .collect();
+
+        if let Ok(env_val) = std::env::var("WXEC_ALLOW_PATHS") {
+            for chunk in env_val.split(',') {
+                for p in std::env::split_paths(chunk) {
+                    if !p.as_os_str().is_empty() {
+                        if let Ok(canon) = paths::canonicalize_lenient(&p) {
+                            if !paths.contains(&canon) {
+                                paths.push(canon);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        paths
     }
 }
 

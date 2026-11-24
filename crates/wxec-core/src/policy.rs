@@ -46,7 +46,7 @@ pub fn resolve(
         return Err(WErr::with_hint(
             "outside_workspace",
             format!("'{input}' resolves outside the workspace root"),
-            "use a path relative to the workspace root",
+            "use a path relative to the workspace root or add to policy.path_allowlist in .wxec.toml (or WXEC_ALLOW_PATHS)",
         ));
     }
     Ok(resolved)

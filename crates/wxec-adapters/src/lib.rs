@@ -51,7 +51,7 @@ impl McpServer {
                     "prompts": {"listChanged": false}
                 },
                 "serverInfo": {"name": SERVER_NAME, "version": env!("CARGO_PKG_VERSION")},
-                "instructions": "Use wxec tools for workspace operations. Results are compact to reduce token use; use expand with a handle to retrieve full output when needed."
+                "instructions": "wxec execution engine. Always chain operations (read, edit, check) inside batch to solve tasks in 1 turn. Large diffs/outputs are stored as handles (~id). Downstream tools interpolate handles (e.g. replace: '~id') without re-transmitting code. Relative paths auto-resolve by suffix. Use check with filter for fast targeted tests."
             })),
             "ping" => Ok(json!({})),
             "tools/list" => Ok(json!({"tools": self.dispatcher.registry().mcp_tools()})),
