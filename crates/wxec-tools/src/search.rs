@@ -84,7 +84,7 @@ impl Tool for SearchTool {
         "search"
     }
     fn description(&self) -> &'static str {
-        "Search text, regex or symbols in workspace."
+        "Search workspace."
     }
     fn min_tier(&self) -> Tier {
         Tier::ReadOnly
@@ -94,14 +94,14 @@ impl Tool for SearchTool {
             "type": "object",
             "properties": {
                 "pattern": {"type": "string"},
-                "mode": {"type": "string", "enum": ["text", "regex", "symbol"], "default": "text"},
-                "path": {"type": "string", "default": "."},
-                "paths": {"type": "array", "items": {"type": "string"}},
+                "mode": {"type": "string", "enum": ["text", "regex", "symbol"]},
+                "path": {"type": "string"},
+                "paths": {"type": "array"},
                 "glob": {"type": "string"},
-                "context": {"type": "integer", "minimum": 0, "maximum": 20, "default": 0},
-                "limit": {"type": "integer", "minimum": 1},
+                "context": {"type": "integer"},
+                "limit": {"type": "integer"},
                 "files_only": {"type": "boolean"},
-                "stats": {"type": "boolean", "default": false},
+                "stats": {"type": "boolean"},
                 "case_insensitive": {"type": "boolean"}
             },
             "required": ["pattern"],

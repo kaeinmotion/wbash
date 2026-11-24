@@ -1913,6 +1913,13 @@ fn resolve_content_or_handle(ctx: &mut ToolContext<'_>, val: &str) -> Result<Str
             .map_err(|e| WErr::new("io_error", format!("read @{target}: {e}")))?;
         return Ok(content);
     }
+    if val.starts_with('~') && val.len() <= 16 && !val.contains('\n') && !val.contains(' ') {
+        let clean = val.trim_start_matches('~');
+        let hid = format!("~{clean}");
+        if let Ok((bytes, _)) = ctx.handles.get(&hid) {
+            return Ok(String::from_utf8_lossy(&bytes).into_owned());
+        }
+    }
     Ok(val.to_string())
 }
 // expand
@@ -1923,8 +1930,16 @@ pub struct ExpandTool;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ExpandArgs {
-    #[serde(rename = "ref", alias = "id", alias = "handle", alias = "handle_id")]
-    reference: String,
+    #[serde(
+        default,
+        rename = "ref",
+        alias = "id",
+        alias = "handle",
+        alias = "handle_id"
+    )]
+    reference: Option<String>,
+    #[serde(default, alias = "refs", alias = "handles", alias = "ids")]
+    references: Vec<String>,
     #[serde(alias = "pattern", alias = "query", alias = "filter")]
     grep: Option<String>,
     #[serde(
@@ -1959,6 +1974,7 @@ impl Tool for ExpandTool {
             "type": "object",
             "properties": {
                 "ref": {"type": "string"},
+                "refs": {"type": "array"},
                 "grep": {"type": "string"},
                 "lines": {"type": "string"},
                 "head": {"type": "integer"},
@@ -1977,7 +1993,70 @@ impl Tool for ExpandTool {
             "expand",
             "pass ref plus optional grep, lines, head, tail, offset",
         )?;
-        let clean_ref = a.reference.trim_start_matches('~');
+        let mut targets = Vec::new();
+        if let Some(r) = &a.reference {
+            for part in r.split(',') {
+                let t = part.trim();
+                if !t.is_empty() {
+                    targets.push(t.to_string());
+                }
+            }
+        }
+        for r in &a.references {
+            let t = r.trim();
+            if !t.is_empty() && !targets.iter().any(|x| x == t) {
+                targets.push(t.to_string());
+            }
+        }
+        if targets.is_empty() {
+            return Err(WErr::invalid_args("ref must not be empty", "ref=<handle_id>"));
+        }
+        if targets.len() > 1 {
+            let mut r = ToolResult::new("expand", format!("{} handles expanded", targets.len()));
+            for t in &targets {
+                let clean_ref = t.trim_start_matches('~');
+                let hid = format!("~{clean_ref}");
+                match ctx.handles.get(&hid) {
+                    Ok((bytes, rec)) => {
+                        r.handle(HandleRef {
+                            id: hid.clone(),
+                            kind: rec.kind.clone(),
+                            bytes: rec.bytes,
+                            hash: rec.hash.clone(),
+                        });
+                        if rec.content_type == "bytes" {
+                            r.push(Item::new(
+                                ItemClass::High,
+                                5.0,
+                                vec![format!("{hid} binary {} bytes ({})", rec.bytes, hash::short(&rec.hash))],
+                            ));
+                        } else {
+                            let text_cow = String::from_utf8_lossy(&bytes);
+                            let lines: Vec<String> = text_cow
+                                .lines()
+                                .take(a.head.unwrap_or(200) as usize)
+                                .map(|s| s.to_string())
+                                .collect();
+                            r.push(Item::new(
+                                ItemClass::High,
+                                5.0,
+                                vec![format!("{hid} ({} lines, {}):", lines.len(), rec.kind)],
+                            ));
+                            r.push(Item::new(ItemClass::Low, 1.0, lines));
+                        }
+                    }
+                    Err(e) => {
+                        r.push(Item::new(
+                            ItemClass::High,
+                            5.0,
+                            vec![format!("{hid} error: {}", e.render())],
+                        ));
+                    }
+                }
+            }
+            return Ok(r);
+        }
+        let clean_ref = targets[0].trim_start_matches('~');
         let id = format!("~{clean_ref}");
         let (bytes, rec) = ctx.handles.get(&id)?;
         if rec.content_type == "bytes" {
