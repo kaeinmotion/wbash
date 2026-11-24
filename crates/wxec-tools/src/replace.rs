@@ -193,15 +193,15 @@ impl Tool for ReplaceTool {
                 "find": {"type": "string"},
                 "replace": {"type": "string"},
                 "path": {"type": "string"},
-                "paths": {"type": "array", "items": {"type": "string"}},
+                "paths": {"type": "array"},
                 "glob": {"type": "string"},
                 "word": {"type": "boolean"},
                 "regex": {"type": "boolean"},
                 "dry_run": {"type": "boolean"},
-                "max_files": {"type": "integer", "minimum": 1},
-                "limit": {"type": "integer", "minimum": 1}
+                "max_files": {"type": "integer"},
+                "limit": {"type": "integer"}
             },
-            "required": ["find", "replace"],
+            "required": ["find"],
             "additionalProperties": false
         })
     }
@@ -211,7 +211,9 @@ impl Tool for ReplaceTool {
             "replace",
             "pass find and replace plus optional path/paths/glob/word/regex/dry_run/max_files/limit",
         )?;
-        if a.find.is_empty() {
+        let find_str = crate::fs::resolve_content_or_handle(ctx, &a.find)?;
+        let repl_str = crate::fs::resolve_content_or_handle(ctx, &a.replace)?;
+        if find_str.is_empty() {
             return Err(WErr::invalid_args(
                 "find must not be empty",
                 "pass the text or pattern to replace",
@@ -224,14 +226,14 @@ impl Tool for ReplaceTool {
             ));
         }
         let matcher = if a.regex {
-            Matcher::Regex(Regex::new(&a.find).map_err(|e| {
+            Matcher::Regex(Regex::new(&find_str).map_err(|e| {
                 WErr::invalid_args(
-                    format!("invalid regex '{}': {e}", a.find),
+                    format!("invalid regex '{find_str}': {e}"),
                     "check escaping or use literal mode",
                 )
             })?)
         } else if a.word {
-            let pat = format!(r"\b{}\b", regex::escape(&a.find));
+            let pat = format!(r"\b{}\b", regex::escape(&find_str));
             Matcher::Word(Regex::new(&pat).map_err(|e| {
                 WErr::invalid_args(
                     format!("invalid word pattern: {e}"),
@@ -239,16 +241,16 @@ impl Tool for ReplaceTool {
                 )
             })?)
         } else {
-            Matcher::Literal(a.find.clone())
+            Matcher::Literal(find_str)
         };
 
         let mut bases_rel = Vec::new();
         if a.paths.is_empty() {
-            let base = ctx.resolve(&a.path, true)?;
+            let base = crate::fs::resolve_workspace_path(ctx, &a.path)?;
             bases_rel.push(ctx.rel(&base));
         } else {
             for p in &a.paths {
-                let base = ctx.resolve(p, true)?;
+                let base = crate::fs::resolve_workspace_path(ctx, p)?;
                 bases_rel.push(ctx.rel(&base));
             }
         }
@@ -320,7 +322,7 @@ impl Tool for ReplaceTool {
                 ));
             }
             let apply_n = remaining_limit.map(|l| l.min(n)).unwrap_or(n);
-            let (new, replaced) = matcher.replace_all(&old, &a.replace, Some(apply_n));
+            let (new, replaced) = matcher.replace_all(&old, &repl_str, Some(apply_n));
             if replaced == 0 || new == old {
                 continue;
             }

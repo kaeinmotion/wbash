@@ -795,4 +795,14 @@ fn test_ergonomic_tool_features() {
     let expand_refs = call(&mut d, "expand", json!({"refs": [h1]}));
     assert!(expand_refs.ok, "{}", expand_refs.text);
     assert!(expand_refs.text.contains("handles expanded"));
+
+    // 34. replace with handle resolution and fuzzy path resolution
+    let replace_fuzzy = call(&mut d, "replace", json!({
+        "path": "unique_target.rs",
+        "find": "fuzzy_edited_test",
+        "replace": "fuzzy_replaced_ok"
+    }));
+    assert!(replace_fuzzy.ok, "{}", replace_fuzzy.text);
+    let verify_replace = call(&mut d, "read", json!({"path": "nested/sub/unique_target.rs"}));
+    assert!(verify_replace.text.contains("fuzzy_replaced_ok"));
 }

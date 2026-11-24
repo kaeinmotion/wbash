@@ -63,11 +63,11 @@ impl Tool for TreeTool {
         json!({
             "type": "object",
             "properties": {
-                "path": {"type": "string", "default": "."},
-                "depth": {"type": "integer", "minimum": 0, "default": 2},
+                "path": {"type": "string"},
+                "depth": {"type": "integer"},
                 "glob": {"type": "string"},
-                "sizes": {"type": "boolean", "default": false},
-                "dirs_only": {"type": "boolean", "default": false}
+                "sizes": {"type": "boolean"},
+                "dirs_only": {"type": "boolean"}
             },
             "additionalProperties": false
         })
@@ -1915,7 +1915,7 @@ fn post_check(
     Ok(())
 }
 
-fn resolve_content_or_handle(ctx: &mut ToolContext<'_>, val: &str) -> Result<String> {
+pub(crate) fn resolve_content_or_handle(ctx: &mut ToolContext<'_>, val: &str) -> Result<String> {
     if val == "-" {
         let mut s = String::new();
         std::io::stdin()
