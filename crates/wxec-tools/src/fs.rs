@@ -451,7 +451,7 @@ impl Tool for ReadTool {
                 r.push(Item::new(
                     ItemClass::High,
                     5.0,
-                    vec![format!("--- {} ---", sub.header)],
+                    vec![format!("{}:", sub.header)],
                 ));
                 for item in sub.items {
                     r.push(item);

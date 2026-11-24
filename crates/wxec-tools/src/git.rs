@@ -437,6 +437,9 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
         let mut plus = 0usize;
         let mut minus = 0usize;
         let mut seen_file = std::collections::HashSet::new();
+        let display_limit = 60usize;
+        let mut emitted_changes = 0usize;
+        let mut omitted_lines = Vec::new();
         for line in text.lines() {
             if let Some(rest) = line.strip_prefix("diff --git ") {
                 files += 1;
@@ -446,13 +449,15 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
                     .map(|s| s.trim_start_matches("b/"))
                     .unwrap_or(rest)
                     .to_string();
-                if seen_file.insert(name.clone()) {
+                if seen_file.insert(name.clone()) && emitted_changes < display_limit {
                     r.high(format!("{name}:"));
                 }
                 continue;
             }
             if line.starts_with("@@") {
-                r.high(line.to_string());
+                if emitted_changes < display_limit {
+                    r.high(line.to_string());
+                }
                 continue;
             }
             if line.starts_with("index ")
@@ -468,13 +473,33 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
             }
             if let Some(rest) = line.strip_prefix('+') {
                 plus += 1;
-                r.low(format!("+{rest}"));
+                if emitted_changes < display_limit {
+                    emitted_changes += 1;
+                    r.low(format!("+{rest}"));
+                } else {
+                    omitted_lines.push(format!("+{rest}"));
+                }
             } else if let Some(rest) = line.strip_prefix('-') {
                 minus += 1;
-                r.low(format!("-{rest}"));
-            } else if line == "\\ No newline at end of file" {
+                if emitted_changes < display_limit {
+                    emitted_changes += 1;
+                    r.low(format!("-{rest}"));
+                } else {
+                    omitted_lines.push(format!("-{rest}"));
+                }
+            } else if line == "\\ No newline at end of file" && emitted_changes < display_limit {
                 r.low(line.to_string());
             }
+        }
+        if !omitted_lines.is_empty() {
+            let h = ctx.handles.put("diff", text.as_bytes(), "text")?;
+            r.handle(HandleRef {
+                id: h.id.clone(),
+                kind: h.kind.clone(),
+                bytes: h.bytes,
+                hash: h.hash.clone(),
+            });
+            r.low(format!("...+{} lines ({})", omitted_lines.len(), h.id));
         }
         r.header = if text.trim().is_empty() {
             "0 changed, +0 -0".to_string()
@@ -519,13 +544,39 @@ fn log(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
     }
     let stdout = out.stdout_str();
     let lines: Vec<&str> = stdout.lines().collect();
-    let raw_lines: Vec<String> = lines.iter().map(|l| l.replace('\t', " ")).collect();
-    let mut r = ToolResult::new("git", format!("{} commits", lines.len()));
+    let display_limit = 25usize;
+    let total_commits = lines.len();
+    let raw_lines: Vec<String> = lines
+        .iter()
+        .map(|l| {
+            let trimmed = l.replace('\t', " ");
+            if trimmed.chars().count() > 120 {
+                let s: String = trimmed.chars().take(117).collect();
+                format!("{s}...")
+            } else {
+                trimmed
+            }
+        })
+        .collect();
+    let mut r = ToolResult::new("git", format!("{} commits", total_commits));
     r.raw_text = Some(raw_lines.join("\n") + if raw_lines.is_empty() { "" } else { "\n" });
-    for line in raw_lines {
-        r.low(line);
+    for line in raw_lines.iter().take(display_limit) {
+        r.low(line.clone());
     }
-    r.meta.counts.insert("commits".into(), lines.len() as i64);
+    if total_commits > display_limit {
+        let omitted: Vec<String> = raw_lines[display_limit..].to_vec();
+        let h = ctx
+            .handles
+            .put("log", omitted.join("\n").as_bytes(), "text")?;
+        r.handle(HandleRef {
+            id: h.id.clone(),
+            kind: h.kind.clone(),
+            bytes: h.bytes,
+            hash: h.hash.clone(),
+        });
+        r.low(format!("...+{} commits ({})", omitted.len(), h.id));
+    }
+    r.meta.counts.insert("commits".into(), total_commits as i64);
     Ok(r)
 }
 

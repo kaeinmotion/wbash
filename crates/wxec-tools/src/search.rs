@@ -410,29 +410,11 @@ impl Tool for SearchTool {
                         break;
                     }
                 }
-                let loc = if lines.len() == 1 {
-                    format!("{}", lines[0])
-                } else {
-                    lines
-                        .iter()
-                        .map(|n| n.to_string())
-                        .collect::<Vec<_>>()
-                        .join(",")
-                };
+                let loc = format_line_numbers(&lines);
                 let line = if grouped {
                     format!("  {}: {}", loc, hit.snippet)
                 } else {
-                    let flat_loc = if lines.len() == 1 {
-                        format!("{}:{}", hit.path, lines[0])
-                    } else {
-                        let joined = lines
-                            .iter()
-                            .map(|n| n.to_string())
-                            .collect::<Vec<_>>()
-                            .join(",");
-                        format!("{}:{}", hit.path, joined)
-                    };
-                    format!("{}: {}", flat_loc, hit.snippet)
+                    format!("{}:{}: {}", hit.path, loc, hit.snippet)
                 };
                 if grouped {
                     result.low(line);
@@ -492,6 +474,41 @@ impl Tool for SearchTool {
 
         Ok(result)
     }
+}
+
+fn format_line_numbers(lines: &[u32]) -> String {
+    if lines.is_empty() {
+        return String::new();
+    }
+    if lines.len() == 1 {
+        return lines[0].to_string();
+    }
+    let mut ranges = Vec::new();
+    let mut start = lines[0];
+    let mut prev = lines[0];
+    for &cur in &lines[1..] {
+        if cur == prev + 1 {
+            prev = cur;
+        } else {
+            if start == prev {
+                ranges.push(format!("{start}"));
+            } else if prev == start + 1 {
+                ranges.push(format!("{start},{prev}"));
+            } else {
+                ranges.push(format!("{start}-{prev}"));
+            }
+            start = cur;
+            prev = cur;
+        }
+    }
+    if start == prev {
+        ranges.push(format!("{start}"));
+    } else if prev == start + 1 {
+        ranges.push(format!("{start},{prev}"));
+    } else {
+        ranges.push(format!("{start}-{prev}"));
+    }
+    ranges.join(",")
 }
 
 fn safe_alternation(pattern: &str) -> Option<String> {

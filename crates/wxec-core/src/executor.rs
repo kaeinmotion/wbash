@@ -66,12 +66,16 @@ fn env_allowed(allow: &[String], key: &str) -> bool {
     })
 }
 
-/// Build the scrubbed child environment: inherited allowlisted keys plus
-/// explicit per-call keys (which must be allowed and are never secret-named).
-pub fn build_env(
-    config: &Config,
-    per_call: Option<&HashMap<String, String>>,
-) -> Result<HashMap<String, String>> {
+type BaseEnvEntry = (Vec<String>, HashMap<String, String>);
+static BASE_ENV_CACHE: std::sync::Mutex<Option<BaseEnvEntry>> = std::sync::Mutex::new(None);
+
+fn get_base_env(config: &Config) -> HashMap<String, String> {
+    let mut lock = BASE_ENV_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((cached_allow, cached_env)) = &*lock {
+        if cached_allow == &config.exec.env_allow {
+            return cached_env.clone();
+        }
+    }
     let mut env = HashMap::new();
     for (k, v) in std::env::vars_os() {
         let Ok(k) = k.into_string() else {
@@ -99,6 +103,17 @@ pub fn build_env(
             }
         }
     }
+    *lock = Some((config.exec.env_allow.clone(), env.clone()));
+    env
+}
+
+/// Build the scrubbed child environment: inherited allowlisted keys plus
+/// explicit per-call keys (which must be allowed and are never secret-named).
+pub fn build_env(
+    config: &Config,
+    per_call: Option<&HashMap<String, String>>,
+) -> Result<HashMap<String, String>> {
+    let mut env = get_base_env(config);
     if let Some(extra) = per_call {
         for (k, v) in extra {
             if !env_allowed(&config.exec.env_allow, k) {
