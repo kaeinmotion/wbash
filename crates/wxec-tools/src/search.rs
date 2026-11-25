@@ -823,8 +823,16 @@ fn path_boost_lc(rel_lc: &str, pat_lc: &str) -> i32 {
     if rel_lc.contains(pat_lc) {
         b += 1;
     }
-    if rel_lc.starts_with("src/") {
+    if rel_lc.starts_with("src/")
+        || rel_lc.starts_with("crates/")
+        || rel_lc.starts_with("lib/")
+        || rel_lc.starts_with("pkg/")
+        || rel_lc.starts_with("app/")
+    {
         b += 1;
+    }
+    if wxec_index::is_test_or_vendor(rel_lc) {
+        b -= 2;
     }
     b
 }

@@ -31,6 +31,9 @@ pub enum Kind {
     GoTest,
     GoVet,
     Zig,
+    Maven,
+    Rspec,
+    Rubocop,
     Toml(Box<TomlParser>),
 }
 
@@ -90,6 +93,9 @@ impl ParserRegistry {
             ("go-test", 90, Kind::GoTest, vec![], None),
             ("go-vet", 90, Kind::GoVet, vec![], None),
             ("zig", 90, Kind::Zig, vec![], None),
+            ("maven", 90, Kind::Maven, vec![], None),
+            ("rspec", 90, Kind::Rspec, vec![], None),
+            ("rubocop", 90, Kind::Rubocop, vec![], None),
         ];
         let mut entries: Vec<ParserEntry> = native
             .into_iter()
@@ -229,6 +235,9 @@ impl ParserSet for ParserRegistry {
                 Kind::GoTest => parse_go_test(stdout),
                 Kind::GoVet => parse_go_vet(exit, stdout, stderr),
                 Kind::Zig => parse_zig(exit, stdout, stderr),
+                Kind::Maven => parse_maven(exit, stdout, stderr),
+                Kind::Rspec => parse_rspec(exit, stdout, stderr),
+                Kind::Rubocop => parse_rubocop(exit, stdout, stderr),
                 Kind::Toml(p) => p.parse(stdout, stderr),
             };
             if let Some(mut run) = parsed {
@@ -290,6 +299,13 @@ fn matches_entry(entry: &ParserEntry, argv: &[String]) -> bool {
         Kind::GoTest => b == "go" && args.get(1) == Some(&"test"),
         Kind::GoVet => b == "go" && matches!(args.get(1), Some(&"vet") | Some(&"build")),
         Kind::Zig => b == "zig" && matches!(args.get(1), Some(&"build") | Some(&"test")),
+        Kind::Maven => b == "mvn" || b == "mvnw",
+        Kind::Rspec => {
+            b == "rspec" || (b == "bundle" && args.windows(2).any(|w| w == ["exec", "rspec"]))
+        }
+        Kind::Rubocop => {
+            b == "rubocop" || (b == "bundle" && args.windows(2).any(|w| w == ["exec", "rubocop"]))
+        }
         Kind::Toml(p) => p.matches(argv),
     }
 }
@@ -1006,6 +1022,165 @@ fn parse_go_vet(exit: &Exit, stdout: &str, stderr: &str) -> Option<ParsedRun> {
     if run.diagnostics.is_empty() {
         if exit.is_success() {
             run.summary = Some("go vet ok".to_string());
+            return Some(run);
+        }
+        return None;
+    }
+    summarize_diagnostics(&mut run);
+    Some(run)
+}
+
+fn parse_maven(exit: &Exit, stdout: &str, stderr: &str) -> Option<ParsedRun> {
+    let re_err = Regex::new(r"^\[ERROR\]\s+([^\s:]+):\[(\d+),(\d+)\]\s*(.*)$").ok()?;
+    let re_tests = Regex::new(
+        r"Tests run:\s*(\d+),\s*Failures:\s*(\d+),\s*Errors:\s*(\d+),\s*Skipped:\s*(\d+)",
+    )
+    .ok()?;
+    let mut run = ParsedRun::default();
+    let mut total_run = 0usize;
+    let mut total_fail = 0usize;
+    let mut total_skip = 0usize;
+    for line in stdout.lines().chain(stderr.lines()) {
+        if let Some(caps) = re_err.captures(line.trim()) {
+            run.diagnostics.push(Diagnostic {
+                file: caps.get(1).map(|m| m.as_str()).unwrap_or("").to_string(),
+                line: caps
+                    .get(2)
+                    .and_then(|m| m.as_str().parse().ok())
+                    .unwrap_or(1),
+                col: caps.get(3).and_then(|m| m.as_str().parse().ok()),
+                severity: Severity::Error,
+                code: None,
+                message: caps.get(4).map(|m| m.as_str()).unwrap_or("").to_string(),
+                tool: Some("maven".to_string()),
+            });
+        } else if let Some(caps) = re_tests.captures(line) {
+            let r: usize = caps
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            let f: usize = caps
+                .get(2)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            let e: usize = caps
+                .get(3)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            let s: usize = caps
+                .get(4)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            total_run += r;
+            total_fail += f + e;
+            total_skip += s;
+        }
+    }
+    if total_run > 0 {
+        let passed = total_run.saturating_sub(total_fail + total_skip);
+        run.totals = Some(RunCounts {
+            passed,
+            failed: total_fail,
+            ignored: total_skip,
+        });
+        run.summary = Some(format!(
+            "{passed} passed, {total_fail} failed, {total_skip} skipped"
+        ));
+    }
+    if run.diagnostics.is_empty() && run.totals.is_none() {
+        if exit.is_success() {
+            run.summary = Some("maven ok".to_string());
+            return Some(run);
+        }
+        return None;
+    }
+    if run.summary.is_none() {
+        summarize_diagnostics(&mut run);
+    }
+    Some(run)
+}
+
+fn parse_rspec(exit: &Exit, stdout: &str, stderr: &str) -> Option<ParsedRun> {
+    let re_fail = Regex::new(r"^rspec\s+(\./)?([^\s:]+):(\d+)\s*#\s*(.*)$").ok()?;
+    let re_sum = Regex::new(r"(\d+)\s+examples?,\s*(\d+)\s+failures?").ok()?;
+    let mut run = ParsedRun::default();
+    let mut examples = 0usize;
+    let mut failures = 0usize;
+    let mut saw_sum = false;
+    for line in stdout.lines().chain(stderr.lines()) {
+        if let Some(caps) = re_fail.captures(line.trim()) {
+            let file = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+            let line_num = caps.get(3).map(|m| m.as_str()).unwrap_or("1");
+            let desc = caps.get(4).map(|m| m.as_str()).unwrap_or("");
+            run.tests.push(TestResult {
+                id: format!("{file}:{line_num}"),
+                status: TestStatus::Fail,
+                duration_ms: None,
+                message: Some(desc.to_string()),
+                location: Some(format!("{file}:{line_num}")),
+            });
+        } else if let Some(caps) = re_sum.captures(line) {
+            saw_sum = true;
+            examples = caps
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            failures = caps
+                .get(2)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+        }
+    }
+    if saw_sum {
+        let passed = examples.saturating_sub(failures);
+        run.totals = Some(RunCounts {
+            passed,
+            failed: failures,
+            ignored: 0,
+        });
+        run.summary = Some(format!("{passed} passed, {failures} failed"));
+    }
+    if run.tests.is_empty() && !saw_sum {
+        if exit.is_success() {
+            run.summary = Some("rspec ok".to_string());
+            return Some(run);
+        }
+        return None;
+    }
+    Some(run)
+}
+
+fn parse_rubocop(exit: &Exit, stdout: &str, stderr: &str) -> Option<ParsedRun> {
+    let re =
+        Regex::new(r"^([^\s:]+):(\d+):(\d+):\s*([CEWFR]):\s*(?:\[[^\]]+\]\s*)?([^:]+):\s*(.*)$")
+            .ok()?;
+    let mut run = ParsedRun::default();
+    for line in stdout.lines().chain(stderr.lines()) {
+        if let Some(caps) = re.captures(line.trim()) {
+            let sev = match caps.get(4).map(|m| m.as_str()).unwrap_or("W") {
+                "E" | "F" => Severity::Error,
+                _ => Severity::Warn,
+            };
+            run.diagnostics.push(Diagnostic {
+                file: caps.get(1).map(|m| m.as_str()).unwrap_or("").to_string(),
+                line: caps
+                    .get(2)
+                    .and_then(|m| m.as_str().parse().ok())
+                    .unwrap_or(1),
+                col: caps.get(3).and_then(|m| m.as_str().parse().ok()),
+                severity: sev,
+                code: caps.get(5).map(|m| m.as_str().trim().to_string()),
+                message: caps
+                    .get(6)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default(),
+                tool: Some("rubocop".to_string()),
+            });
+        }
+    }
+    if run.diagnostics.is_empty() {
+        if exit.is_success() {
+            run.summary = Some("rubocop ok".to_string());
             return Some(run);
         }
         return None;
