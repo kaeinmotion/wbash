@@ -206,13 +206,23 @@ impl Dispatcher {
                 .and_then(|v| v.as_array())
                 .map(|calls| {
                     calls.iter().any(|c| {
-                        let ct = c.get("tool").and_then(|v| v.as_str()).unwrap_or("");
+                        let ct = c
+                            .get("tool")
+                            .or_else(|| c.get("name"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
                         if matches!(ct, "run" | "sh" | "check") {
                             return true;
                         }
                         if ct == "git" {
-                            return c
+                            let c_args = c
                                 .get("args")
+                                .or_else(|| c.get("arguments"))
+                                .or_else(|| c.get("params"))
+                                .or_else(|| c.get("parameters"))
+                                .or_else(|| c.get("input"))
+                                .or_else(|| c.get("tool_args"));
+                            return c_args
                                 .and_then(|a| a.get("op"))
                                 .and_then(|v| v.as_str())
                                 .is_some_and(|op| matches!(op, "commit" | "push" | "add"));

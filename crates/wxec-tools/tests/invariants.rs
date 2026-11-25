@@ -843,4 +843,66 @@ fn test_ergonomic_tool_features() {
         json!({"path": "nested/sub/unique_target.rs"}),
     );
     assert!(verify_replace.text.contains("fuzzy_replaced_ok"));
+
+    // 35. mixed batch with compact: true preserves read outputs while compressing action items
+    std::fs::write(root.join("mixed_a.txt"), "mixed_before\n").unwrap();
+    let mixed_compact = call(
+        &mut d,
+        "batch",
+        json!({
+            "calls": [
+                {"tool": "read", "args": {"path": "context_sample.txt", "lines": "1-2"}},
+                {"tool": "edit", "tool_args": {"path": "mixed_a.txt", "find": "mixed_before", "replace": "mixed_after"}}
+            ],
+            "compact": true
+        }),
+    );
+    assert!(mixed_compact.ok, "{}", mixed_compact.text);
+    assert!(
+        mixed_compact.text.contains("1: line 1"),
+        "mixed compact should preserve read output: {}",
+        mixed_compact.text
+    );
+    assert!(
+        !mixed_compact.text.contains("#2 edit ok"),
+        "mixed compact should compress edit output: {}",
+        mixed_compact.text
+    );
+    assert!(
+        mixed_compact.text.contains("actions rollup:"),
+        "mixed compact should include actions rollup: {}",
+        mixed_compact.text
+    );
+
+    // 36. search with files_only and limit respects limit and emits handle for overflow
+    for idx in 0..4 {
+        let r = call(
+            &mut d,
+            "edit",
+            json!({"path": format!("fo_{idx}.txt"), "content": "files_only_needle\n"}),
+        );
+        assert!(r.ok, "{}", r.text);
+    }
+    let fo_limited = call(
+        &mut d,
+        "search",
+        json!({
+            "pattern": "files_only_needle",
+            "files_only": true,
+            "limit": 2
+        }),
+    );
+    assert!(fo_limited.ok, "{}", fo_limited.text);
+    assert!(
+        fo_limited
+            .text
+            .contains("4 files with matches (2 returned)"),
+        "{}",
+        fo_limited.text
+    );
+    assert!(
+        fo_limited.text.contains("...+2 files (~"),
+        "{}",
+        fo_limited.text
+    );
 }

@@ -37,7 +37,8 @@ struct BatchCall {
         alias = "arguments",
         alias = "params",
         alias = "parameters",
-        alias = "input"
+        alias = "input",
+        alias = "tool_args"
     )]
     args: Value,
 }
@@ -123,9 +124,17 @@ impl Tool for BatchTool {
         let mut total_replacements = 0i64;
         let mut last_file_hashes: std::collections::HashMap<String, String> =
             std::collections::HashMap::new();
+        let mut action_item_ranges: Vec<std::ops::Range<usize>> = Vec::new();
         for (i, call) in a.calls.iter().enumerate() {
             let mut call_args = call.args.clone();
-            if call.tool == "edit" {
+            let canonical_tool = ctx
+                .registry
+                .get(&call.tool)
+                .map(|t| t.name())
+                .unwrap_or(call.tool.as_str());
+            let is_action = matches!(canonical_tool, "edit" | "check" | "git" | "replace");
+            let items_start = result.items.len();
+            if canonical_tool == "edit" {
                 if let Some(path_val) = call_args.get("path").and_then(|v| v.as_str()) {
                     let norm_path = path_val.strip_prefix("file://").unwrap_or(path_val);
                     if let Some(prev_hash) = last_file_hashes.get(norm_path) {
@@ -197,6 +206,9 @@ impl Tool for BatchTool {
                             result.push(Item::new(ItemClass::Low, 5.0, line_strings));
                         }
                     }
+                    if is_action && result.items.len() > items_start {
+                        action_item_ranges.push(items_start..result.items.len());
+                    }
                     for h in &child.handles {
                         if !result.handles.iter().any(|x| x.id == h.id) {
                             result.handle(HandleRef {
@@ -238,12 +250,15 @@ impl Tool for BatchTool {
         result.meta.counts.insert("ok".into(), ok_count as i64);
         result.meta.counts.insert("error".into(), err_count as i64);
         result.meta.counts.insert("total".into(), n as i64);
-        let only_actions = a
-            .calls
-            .iter()
-            .all(|c| matches!(c.tool.as_str(), "edit" | "check" | "git" | "replace"));
+        let only_actions = a.calls.iter().all(|c| {
+            let ct = ctx
+                .registry
+                .get(&c.tool)
+                .map(|t| t.name())
+                .unwrap_or(c.tool.as_str());
+            matches!(ct, "edit" | "check" | "git" | "replace")
+        });
         if (a.compact || only_actions) && err_count == 0 {
-            result.items.clear();
             let mut parts = Vec::new();
             if total_ins > 0 || total_del > 0 {
                 parts.push(format!("+{total_ins} -{total_del}"));
@@ -254,12 +269,27 @@ impl Tool for BatchTool {
             if total_replacements > 0 {
                 parts.push(format!("{total_replacements} replaced"));
             }
-            let summary = if parts.is_empty() {
-                format!("{ok_count} actions ok")
-            } else {
-                format!("{ok_count} ok ({})", parts.join(", "))
-            };
-            result.header = format!("batch rollup: {summary}");
+            if only_actions {
+                result.items.clear();
+                let summary = if parts.is_empty() {
+                    format!("{ok_count} actions ok")
+                } else {
+                    format!("{ok_count} ok ({})", parts.join(", "))
+                };
+                result.header = format!("batch rollup: {summary}");
+            } else if !action_item_ranges.is_empty() {
+                // In mixed compact batches, drop verbose action items while preserving read/search/tree outputs.
+                for range in action_item_ranges.into_iter().rev() {
+                    result.items.drain(range);
+                }
+                if !parts.is_empty() {
+                    result.push(Item::new(
+                        ItemClass::High,
+                        5.0,
+                        vec![format!("actions rollup: {}", parts.join(", "))],
+                    ));
+                }
+            }
         }
         Ok(result)
     }

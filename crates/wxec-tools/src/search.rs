@@ -288,13 +288,43 @@ impl Tool for SearchTool {
             for h in &hits {
                 file_set.insert(h.path.clone());
             }
+            let file_count = file_set.len();
+            let file_limit = a.limit.unwrap_or(200) as usize;
+            let truncated_files = file_count > file_limit;
+            let returned_files = file_count.min(file_limit);
+            let all_files: Vec<String> = file_set.into_iter().collect();
             let mut result = ToolResult::new(
                 "search",
-                format!("{} with matches", util::plural(file_set.len(), "file")),
+                if truncated_files {
+                    format!(
+                        "{} with matches ({returned_files} returned)",
+                        util::plural(file_count, "file")
+                    )
+                } else {
+                    format!("{} with matches", util::plural(file_count, "file"))
+                },
             );
-            let lines: Vec<String> = file_set.into_iter().collect();
-            result.push(Item::new(ItemClass::MustKeep, 1.0, lines));
-            result.meta.counts.insert("files".into(), total as i64);
+            result.push(Item::new(
+                ItemClass::High,
+                5.0,
+                all_files[..returned_files].to_vec(),
+            ));
+            if truncated_files {
+                let omitted = all_files[returned_files..].join("\n");
+                let h = ctx.handles.put("search", omitted.as_bytes(), "text")?;
+                result.must(format!(
+                    "...+{} files ({})",
+                    file_count - returned_files,
+                    h.id
+                ));
+                result.handle(HandleRef {
+                    id: h.id,
+                    kind: h.kind,
+                    bytes: h.bytes,
+                    hash: h.hash,
+                });
+            }
+            result.meta.counts.insert("files".into(), file_count as i64);
             return Ok(result);
         }
         let truncated = total > limit as usize;
