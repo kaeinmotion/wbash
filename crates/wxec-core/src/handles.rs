@@ -83,10 +83,24 @@ impl HandleStore {
         } else {
             (bytes.to_vec(), false, "bytes".to_string())
         };
-        let id = format!("~{}", base36(self.next));
-        self.next += 1;
         let full = hash::hash_bytes(&stored);
         let now = now_ms();
+        if let Some(existing) = self.handles.values().find(|r| {
+            r.hash == full
+                && r.content_type == ctype
+                && r.kind == kind
+                && now <= r.expires_ms
+                && self.blob_path(&r.id).exists()
+        }) {
+            return Ok(HandleRef {
+                id: existing.id.clone(),
+                kind: existing.kind.clone(),
+                bytes: existing.bytes,
+                hash: existing.hash.clone(),
+            });
+        }
+        let id = format!("~{}", base36(self.next));
+        self.next += 1;
         let rec = HandleRecord {
             id: id.clone(),
             kind: kind.to_string(),

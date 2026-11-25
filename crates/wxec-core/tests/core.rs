@@ -86,6 +86,15 @@ fn core_primitives() {
     }
     let from_arr: TestRange = serde_json::from_str(r#"{"lines": [1, 30]}"#).unwrap();
     assert_eq!(from_arr.lines.as_deref(), Some("1-30"));
+
+    // Verify content-addressed handle deduplication
+    let mut store =
+        HandleStore::open("dedup-test", &croot, 600, 10_000_000, Redactor::new()).unwrap();
+    let h1 = store.put("read", b"identical payload", "text").unwrap();
+    let h2 = store.put("read", b"identical payload", "text").unwrap();
+    let h3 = store.put("read", b"different payload", "text").unwrap();
+    assert_eq!(h1.id, h2.id);
+    assert_ne!(h1.id, h3.id);
     let from_single_num: TestRange = serde_json::from_str(r#"{"lines": 10}"#).unwrap();
     assert_eq!(from_single_num.lines.as_deref(), Some("10-10"));
     let from_str: TestRange = serde_json::from_str(r#"{"lines": "5-15"}"#).unwrap();
