@@ -124,9 +124,14 @@ impl Tool for BatchTool {
         let mut total_replacements = 0i64;
         let mut last_file_hashes: std::collections::HashMap<String, String> =
             std::collections::HashMap::new();
+        let mut step_handles: Vec<Option<String>> = Vec::with_capacity(n);
+        let mut last_handle: Option<String> = None;
         let mut action_item_ranges: Vec<std::ops::Range<usize>> = Vec::new();
         for (i, call) in a.calls.iter().enumerate() {
             let mut call_args = call.args.clone();
+            if last_handle.is_some() || step_handles.iter().any(Option::is_some) {
+                resolve_batch_handle_refs(&mut call_args, last_handle.as_deref(), &step_handles);
+            }
             let canonical_tool = ctx
                 .registry
                 .get(&call.tool)
@@ -209,6 +214,15 @@ impl Tool for BatchTool {
                     if is_action && result.items.len() > items_start {
                         action_item_ranges.push(items_start..result.items.len());
                     }
+                    let produced_handle = child
+                        .handles
+                        .first()
+                        .map(|h| h.id.clone())
+                        .or_else(|| child.meta.strings.get("snapshot").cloned());
+                    if let Some(ref hid) = produced_handle {
+                        last_handle = Some(hid.clone());
+                    }
+                    step_handles.push(produced_handle);
                     for h in &child.handles {
                         if !result.handles.iter().any(|x| x.id == h.id) {
                             result.handle(HandleRef {
@@ -221,6 +235,7 @@ impl Tool for BatchTool {
                     }
                 }
                 Err(e) => {
+                    step_handles.push(None);
                     err_count += 1;
                     let err_hdr = format!("#{} {} error", i + 1, call.tool);
                     let err_msg = e.render();
@@ -292,6 +307,41 @@ impl Tool for BatchTool {
             }
         }
         Ok(result)
+    }
+}
+
+fn resolve_batch_handle_refs(
+    val: &mut Value,
+    last_handle: Option<&str>,
+    step_handles: &[Option<String>],
+) {
+    match val {
+        Value::String(s) => {
+            if s == "~prev" {
+                if let Some(h) = last_handle {
+                    *s = h.to_string();
+                }
+            } else if let Some(rest) = s.strip_prefix("~step") {
+                if let Ok(idx) = rest.parse::<usize>() {
+                    if idx >= 1 {
+                        if let Some(Some(h)) = step_handles.get(idx - 1) {
+                            *s = h.clone();
+                        }
+                    }
+                }
+            }
+        }
+        Value::Array(arr) => {
+            for item in arr {
+                resolve_batch_handle_refs(item, last_handle, step_handles);
+            }
+        }
+        Value::Object(map) => {
+            for v in map.values_mut() {
+                resolve_batch_handle_refs(v, last_handle, step_handles);
+            }
+        }
+        _ => {}
     }
 }
 

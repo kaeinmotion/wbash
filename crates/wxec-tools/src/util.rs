@@ -21,14 +21,20 @@ pub fn display_path(root: &Path, abs: &Path) -> String {
     if abs == root {
         ".".to_string()
     } else {
-        wxec_index::Workspace::new(root).rel(abs)
+        let rel = abs.strip_prefix(root).unwrap_or(abs);
+        let s = rel.to_string_lossy().replace('\\', "/");
+        if s.is_empty() {
+            ".".to_string()
+        } else {
+            s
+        }
     }
 }
 
 pub fn rel_path(root: &Path, p: &str) -> String {
     let path = Path::new(p);
     if path.is_absolute() {
-        wxec_index::Workspace::new(root).rel(path)
+        display_path(root, path)
     } else {
         p.replace('\\', "/")
     }

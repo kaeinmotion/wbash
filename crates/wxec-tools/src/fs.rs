@@ -789,6 +789,7 @@ impl Tool for ReadTool {
                         format!("unchanged {display} ({short}) expand {snap}"),
                     );
                     r.meta.counts.insert("lines".into(), line_count as i64);
+                    r.meta.strings.insert("snapshot".into(), snap.clone());
                     return Ok(r);
                 }
             } else if !a.force && !a.outline && line_count > 30 {
@@ -934,6 +935,9 @@ impl Tool for ReadTool {
             }
         }
         let snapshot = ctx.handles.put("read_snapshot", text.as_bytes(), "text")?;
+        r.meta
+            .strings
+            .insert("snapshot".into(), snapshot.id.clone());
         record_read_snapshot(
             ctx,
             &display,
