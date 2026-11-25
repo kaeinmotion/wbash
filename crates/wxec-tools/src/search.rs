@@ -273,26 +273,19 @@ impl Tool for SearchTool {
             }
         }
 
-        hits.sort_by(|a, b| {
-            b.score
-                .cmp(&a.score)
-                .then(b.is_definition.cmp(&a.is_definition))
-                .then(a.path.cmp(&b.path))
-                .then(a.line.cmp(&b.line))
-                .then(a.col.cmp(&b.col))
-        });
-
-        let total = hits.len();
         if a.files_only {
-            let mut file_set = std::collections::BTreeSet::new();
-            for h in &hits {
-                file_set.insert(h.path.clone());
-            }
-            let file_count = file_set.len();
+            let all_files: Vec<String> = if a.mode == "symbol" {
+                let file_set: std::collections::BTreeSet<String> =
+                    hits.into_iter().map(|h| h.path).collect();
+                file_set.into_iter().collect()
+            } else {
+                // walk.files is already sorted deterministically and scan_lines pushes at most once per file
+                hits.into_iter().map(|h| h.path).collect()
+            };
+            let file_count = all_files.len();
             let file_limit = a.limit.unwrap_or(200) as usize;
             let truncated_files = file_count > file_limit;
             let returned_files = file_count.min(file_limit);
-            let all_files: Vec<String> = file_set.into_iter().collect();
             let mut result = ToolResult::new(
                 "search",
                 if truncated_files {
@@ -327,6 +320,15 @@ impl Tool for SearchTool {
             result.meta.counts.insert("files".into(), file_count as i64);
             return Ok(result);
         }
+        hits.sort_by(|a, b| {
+            b.score
+                .cmp(&a.score)
+                .then(b.is_definition.cmp(&a.is_definition))
+                .then(a.path.cmp(&b.path))
+                .then(a.line.cmp(&b.line))
+                .then(a.col.cmp(&b.col))
+        });
+        let total = hits.len();
         let truncated = total > limit as usize;
         let returned = hits.len().min(limit as usize);
         let omitted_body = if truncated {
