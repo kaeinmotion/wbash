@@ -148,7 +148,17 @@ impl Tool for CheckTool {
         let mut failed = 0usize;
         let mut ignored = 0usize;
         let verbose = ctx.config.output.verbosity == "verbose";
+        let mut build_failed = false;
         for (label, argv) in &commands {
+            let is_test_cmd = label.contains("test")
+                || label.contains("pytest")
+                || label.contains("vitest")
+                || label.contains("jest")
+                || label.contains("rspec");
+            if build_failed && is_test_cmd {
+                result.note(format!("skipped {label} (build failed)"));
+                continue;
+            }
             let run = match execute_with_parsers(
                 ctx,
                 argv,
@@ -182,6 +192,15 @@ impl Tool for CheckTool {
                 failed += pf;
                 ignored += pi;
                 let has_errors = p.diagnostics.iter().any(|d| d.severity == Severity::Error);
+                if !run.output.exit.is_success()
+                    && has_errors
+                    && (label.contains("build")
+                        || label.contains("check")
+                        || label.contains("compile")
+                        || label.contains("tsc"))
+                {
+                    build_failed = true;
+                }
                 all_ok &= run.output.exit.is_success() && !has_errors && pf == 0;
                 let has_structured = !p.diagnostics.is_empty()
                     || !p.tests.is_empty()

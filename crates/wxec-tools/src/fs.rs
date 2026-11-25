@@ -713,7 +713,12 @@ fn read_single(mut a: ReadArgs, ctx: &mut ToolContext<'_>) -> Result<ToolResult>
         let mut formatted_symbols = Vec::with_capacity(outline.symbols.len());
         for s in &outline.symbols {
             let pad = " ".repeat(s.indent.min(40));
-            formatted_symbols.push(format!("{pad}{}: {} {}", s.start_line, s.kind, s.name));
+            let loc = if s.end_line > s.start_line {
+                format!("{}-{}", s.start_line, s.end_line)
+            } else {
+                s.start_line.to_string()
+            };
+            formatted_symbols.push(format!("{pad}{loc}: {} {}", s.kind, s.name));
         }
         r.push(Item::new(ItemClass::Low, 5.0, formatted_symbols));
         r.meta
@@ -918,10 +923,15 @@ fn read_single(mut a: ReadArgs, ctx: &mut ToolContext<'_>) -> Result<ToolResult>
                 continue;
             }
             let pad = " ".repeat(s.indent.min(40));
+            let loc = if s.end_line > s.start_line {
+                format!("{}-{}", s.start_line, s.end_line)
+            } else {
+                s.start_line.to_string()
+            };
             r.push(Item::new(
                 ItemClass::High,
                 4.0,
-                vec![format!("{pad}{}: {} {}", s.start_line, s.kind, s.name)],
+                vec![format!("{pad}{loc}: {} {}", s.kind, s.name)],
             ));
             outline_shown += 1;
         }
