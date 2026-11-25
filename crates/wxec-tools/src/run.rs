@@ -156,14 +156,17 @@ pub fn record_output(
     let parse_miss_pre = !output.exit.is_success() && !has_structured_pre && !raw.trim().is_empty();
     let structured_failure_tail =
         !output.exit.is_success() && has_structured_pre && !raw.trim().is_empty();
-    // Keep a handle for lossless access when output is non-trivial or we need to show omitted/raw context.
-    let minimal_success = output.exit.is_success() && ctx.config.output.verbosity != "verbose";
+    // Keep a handle for lossless access whenever output is non-trivial or lines are omitted.
+    let verbose = ctx.config.output.verbosity == "verbose";
+    let non_empty_count = raw.lines().filter(|l| !l.trim_end().is_empty()).count();
+    let will_omit_unparsed =
+        output.exit.is_success() && parsed.is_none() && !verbose && (non_empty_count > 10 || raw.len() > 800);
     let need_handle = !raw.trim().is_empty()
-        && !minimal_success
-        && (inject_full
+        && (will_omit_unparsed
             || raw.len() > 4096
             || (!output.exit.is_success() && !structured_failure_tail)
-            || (output.exit.is_success() && parsed.is_some()))
+            || (output.exit.is_success() && parsed.is_some() && (non_empty_count > 6 || verbose))
+            || (inject_full && verbose))
         && !parse_miss_pre
         && !structured_failure_tail;
     if need_handle {
@@ -262,56 +265,46 @@ pub fn record_output(
                 result.must(format!("full: {}", h.id));
             }
         } else {
-            // Success: keep compact. In verbose mode include raw body; otherwise rely on header/counts
-            // and emit only a short tail if non-trivial (lossless via handle/raw_text).
-            let verbose = ctx.config.output.verbosity == "verbose";
-            if verbose {
-                for line in raw.lines() {
-                    let line = line.trim_end();
-                    if !line.is_empty() {
-                        result.low(line.to_string());
-                    }
+            let lines: Vec<&str> = raw
+                .lines()
+                .map(str::trim_end)
+                .filter(|l| !l.is_empty())
+                .collect();
+            if verbose || (lines.len() <= 10 && raw.len() <= 800) {
+                for line in lines {
+                    result.low(line.to_string());
                 }
             } else {
-                // keep at most a few informative summary-like lines with bounded O(1) memory
-                let mut ring: std::collections::VecDeque<&str> =
-                    std::collections::VecDeque::with_capacity(7);
-                let mut count = 0usize;
-                for l in raw.lines() {
-                    let l = l.trim_end();
-                    if !l.is_empty() {
-                        count += 1;
-                        if ring.len() == 7 {
-                            ring.pop_front();
-                        }
-                        ring.push_back(l);
+                let href = if let Some(id) = full_ref.as_deref() {
+                    id.to_string()
+                } else {
+                    let h = ctx.handles.put(label, raw.as_bytes(), "text")?;
+                    let id = h.id.clone();
+                    result.handle(HandleRef {
+                        id: h.id,
+                        kind: h.kind,
+                        bytes: h.bytes,
+                        hash: h.hash,
+                    });
+                    full_ref = Some(id.clone());
+                    id
+                };
+                if lines.len() > 10 {
+                    let head_n = 3;
+                    let tail_n = 4;
+                    let omitted = lines.len().saturating_sub(head_n + tail_n);
+                    for l in &lines[..head_n] {
+                        result.low((*l).to_string());
                     }
-                }
-                if count > 0 && (count <= 6 || raw.len() <= 200) {
-                    for l in ring {
-                        result.low(l.to_string());
+                    result.must(format!("...+{} lines omitted ({})", omitted, href));
+                    for l in &lines[lines.len() - tail_n..] {
+                        result.low((*l).to_string());
                     }
                 } else {
-                    // prefer tail summary lines (e.g. "test result: ok...")
-                    let mut matched_any = false;
-                    for l in ring.iter().rev().take(4).rev() {
-                        if l.contains("test result")
-                            || l.contains(" passed")
-                            || l.starts_with("ok")
-                            || l.starts_with("Finished")
-                            || l.contains("warning:")
-                            || l.contains("error:")
-                            || l.contains("failed")
-                        {
-                            result.low((*l).to_string());
-                            matched_any = true;
-                        }
+                    for l in lines {
+                        result.low(l.to_string());
                     }
-                    if !matched_any {
-                        for l in ring.iter().rev().take(4).rev() {
-                            result.low((*l).to_string());
-                        }
-                    }
+                    result.must(format!("full: {href}"));
                 }
             }
         }
@@ -485,6 +478,8 @@ impl Tool for RunTool {
             a.env.as_ref(),
             true,
         )?;
+        ctx.workspace.invalidate();
+        ctx.ledger.invalidate_searches();
         let mut header = if run.output.duration_ms >= 1000 {
             format!(
                 "{}, {}",
@@ -599,6 +594,8 @@ impl Tool for ShTool {
             None,
             false,
         )?;
+        ctx.workspace.invalidate();
+        ctx.ledger.invalidate_searches();
         let header = if run.output.duration_ms >= 1000 {
             format!(
                 "{}, {}",

@@ -30,14 +30,6 @@ pub fn resolve(
     let resolved = paths::canonicalize_lenient(&joined)
         .map_err(|e| WErr::new("not_found", format!("cannot resolve '{input}': {e}")))?;
 
-    if must_exist && !resolved.exists() {
-        return Err(WErr::with_hint(
-            "not_found",
-            format!("'{input}' does not exist"),
-            "use `w tree` or `w search` to locate it",
-        ));
-    }
-
     let within_root = resolved == root || resolved.starts_with(root);
     let allowed = allowlist
         .iter()
@@ -47,6 +39,14 @@ pub fn resolve(
             "outside_workspace",
             format!("'{input}' resolves outside the workspace root"),
             "use a path relative to the workspace root or add to policy.path_allowlist in .wxec.toml (or WXEC_ALLOW_PATHS)",
+        ));
+    }
+
+    if must_exist && !resolved.exists() {
+        return Err(WErr::with_hint(
+            "not_found",
+            format!("'{input}' does not exist"),
+            "use `w tree` or `w search` to locate it",
         ));
     }
     Ok(resolved)

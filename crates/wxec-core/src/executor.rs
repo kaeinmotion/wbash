@@ -244,11 +244,16 @@ pub fn execute(req: &ExecRequest) -> Result<ExecOutput> {
                     }
                     let grace = Duration::from_millis(req.kill_grace_ms.max(1));
                     let grace_deadline = Instant::now() + grace;
+                    let mut reaped = None;
                     while Instant::now() < grace_deadline {
-                        if let Ok(Some(_)) = child.try_wait() {
+                        if let Ok(Some(s)) = child.try_wait() {
+                            reaped = Some(s);
                             break;
                         }
                         std::thread::sleep(Duration::from_millis(10));
+                    }
+                    if let Some(s) = reaped {
+                        break Some(s);
                     }
                     #[cfg(unix)]
                     unsafe {

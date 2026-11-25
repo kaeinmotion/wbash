@@ -85,19 +85,28 @@ impl HandleStore {
         };
         let full = hash::hash_bytes(&stored);
         let now = now_ms();
-        if let Some(existing) = self.handles.values().find(|r| {
-            r.hash == full
-                && r.content_type == ctype
-                && r.kind == kind
-                && now <= r.expires_ms
-                && self.blob_path(&r.id).exists()
-        }) {
-            return Ok(HandleRef {
-                id: existing.id.clone(),
-                kind: existing.kind.clone(),
-                bytes: existing.bytes,
-                hash: existing.hash.clone(),
-            });
+        let existing_id = self
+            .handles
+            .values()
+            .find(|r| {
+                r.hash == full
+                    && r.content_type == ctype
+                    && r.kind == kind
+                    && now <= r.expires_ms
+                    && self.blob_path(&r.id).exists()
+            })
+            .map(|r| r.id.clone());
+        if let Some(id) = existing_id {
+            if let Some(existing) = self.handles.get_mut(&id) {
+                existing.last_access_ms = now;
+                existing.expires_ms = now + (self.ttl_secs as i64) * 1000;
+                return Ok(HandleRef {
+                    id: existing.id.clone(),
+                    kind: existing.kind.clone(),
+                    bytes: existing.bytes,
+                    hash: existing.hash.clone(),
+                });
+            }
         }
         let id = format!("~{}", base36(self.next));
         self.next += 1;

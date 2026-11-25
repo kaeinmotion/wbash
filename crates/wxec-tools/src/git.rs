@@ -140,8 +140,15 @@ impl Tool for GitTool {
                         "git",
                         format!("custom git, {}", format_duration_ms(out.duration_ms)),
                     );
+                    ctx.workspace.invalidate();
+                    ctx.ledger.invalidate_searches();
                     r.meta.ok = out.exit.is_success();
                     r.meta.exit = Some(out.exit);
+                    if !r.meta.ok {
+                        for err in extract_git_errors(&out) {
+                            r.must(err);
+                        }
+                    }
                     let text = out.combined();
                     if !text.trim().is_empty() {
                         let h = ctx.handles.put("git", text.as_bytes(), "text")?;
@@ -902,6 +909,10 @@ fn checkout(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
             }
         }
     }
+    if out.exit.is_success() {
+        ctx.workspace.invalidate();
+        ctx.ledger.invalidate_searches();
+    }
     let mut r = ToolResult::new("git", format!("checkout {target}"));
     r.meta.ok = out.exit.is_success();
     r.meta.exit = Some(out.exit);
@@ -1087,6 +1098,10 @@ fn pull(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
         "git",
         format!("pull, {} {first}", format_duration_ms(out.duration_ms)),
     );
+    if out.exit.is_success() {
+        ctx.workspace.invalidate();
+        ctx.ledger.invalidate_searches();
+    }
     r.meta.ok = out.exit.is_success();
     r.meta.exit = Some(out.exit);
     if !r.meta.ok {

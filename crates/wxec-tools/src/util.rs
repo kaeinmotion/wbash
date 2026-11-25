@@ -6,6 +6,12 @@ use wxec_core::error::{Result, WErr};
 use wxec_core::handles::HandleStore;
 use wxec_core::types::{Diagnostic, HandleRef, Item, ItemClass, Severity, TestResult, ToolResult};
 
+/// Returns the first path component in `rel` that matches a built-in ignore directory.
+pub fn ignored_component(rel: &str) -> Option<&str> {
+    rel.split(['/', '\\'])
+        .find(|c| !c.is_empty() && *c != "." && wxec_index::is_builtin_ignored(c))
+}
+
 pub fn plural(n: usize, noun: &str) -> String {
     if n == 1 {
         return format!("1 {noun}");

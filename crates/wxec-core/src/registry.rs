@@ -139,7 +139,7 @@ pub fn precheck(
         )
     })?;
     policy::check_tier(ctx.tier, tool.min_tier(), name)?;
-    if name == "sh" && !ctx.config.exec.allow_shell {
+    if tool.name() == "sh" && !ctx.config.exec.allow_shell {
         return Err(WErr::with_hint(
             "policy_denied",
             "shell execution is disabled",
@@ -154,9 +154,26 @@ fn jail_args(args: &Value, ctx: &ToolContext<'_>) -> Result<()> {
     let Some(obj) = args.as_object() else {
         return Ok(());
     };
-    for key in ["path", "cwd"] {
+    for key in [
+        "path",
+        "cwd",
+        "dir",
+        "working_dir",
+        "directory",
+        "folder",
+        "file",
+        "file_path",
+        "filepath",
+    ] {
         if let Some(Value::String(s)) = obj.get(key) {
             ctx.resolve(s, false)?;
+        }
+    }
+    if let Some(Value::Array(items)) = obj.get("paths").or_else(|| obj.get("files")) {
+        for item in items {
+            if let Value::String(s) = item {
+                ctx.resolve(s, false)?;
+            }
         }
     }
     match obj.get("pathspec") {

@@ -196,7 +196,8 @@ impl Dispatcher {
 
         let mut mutating = match self.registry.get(tool) {
             Some(t) => {
-                t.min_tier() >= Tier::WriteWorkspace || matches!(tool, "run" | "sh" | "check")
+                t.min_tier() >= Tier::WriteWorkspace
+                    || matches!(t.name(), "run" | "sh" | "check")
             }
             None => false,
         };
@@ -225,7 +226,12 @@ impl Dispatcher {
                             return c_args
                                 .and_then(|a| a.get("op"))
                                 .and_then(|v| v.as_str())
-                                .is_some_and(|op| matches!(op, "commit" | "push" | "add"));
+                                .is_some_and(|op| {
+                                    matches!(
+                                        op,
+                                        "commit" | "push" | "add" | "checkout" | "switch" | "pull" | "custom" | "raw"
+                                    )
+                                });
                         }
                         self.registry
                             .get(ct)
@@ -236,7 +242,10 @@ impl Dispatcher {
         }
         if tool == "git" {
             if let Some(op) = tool_args.get("op").and_then(|v| v.as_str()) {
-                if matches!(op, "commit" | "push" | "add") {
+                if matches!(
+                    op,
+                    "commit" | "push" | "add" | "checkout" | "switch" | "pull" | "custom" | "raw"
+                ) {
                     mutating = true;
                 }
             }

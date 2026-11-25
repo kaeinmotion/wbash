@@ -121,6 +121,11 @@ impl Tool for TreeTool {
         if walk.truncated {
             result.note("tree_truncated");
         }
+        if root.file_count() == 0 && root.dir_count() == 0 {
+            if let Some(ig) = util::ignored_component(&base_rel) {
+                result.note(format!("path is under built-in ignored directory '{ig}'"));
+            }
+        }
         let max_depth = if a.depth == 0 {
             usize::MAX
         } else {
@@ -402,48 +407,6 @@ impl Tool for ReadTool {
             "read",
             "pass path plus optional lines, symbol, outline, expect_hash, force",
         )?;
-        if let Some(rest) = a.path.strip_prefix("file://") {
-            a.path = rest.to_string();
-        }
-        if a.lines.is_none()
-            && !ctx
-                .resolve(&a.path, false)
-                .map(|p| p.exists())
-                .unwrap_or(false)
-        {
-            let parsed = if let Some((file_part, sym_or_lines)) = a.path.rsplit_once('#') {
-                Some((file_part.to_string(), sym_or_lines.to_string(), true))
-            } else if let Some((file_part, line_part)) = a.path.rsplit_once(':') {
-                Some((file_part.to_string(), line_part.to_string(), false))
-            } else {
-                None
-            };
-            if let Some((file_part, spec, is_hash)) = parsed {
-                if is_hash {
-                    if let Some(rest) = spec.strip_prefix('L') {
-                        let cleaned = rest.replace('L', "").replace('-', ":");
-                        a.path = file_part;
-                        a.lines = Some(cleaned);
-                    } else if spec
-                        .chars()
-                        .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
-                    {
-                        a.path = file_part;
-                        a.lines = Some(spec.replace('-', ":"));
-                    } else if a.symbol.is_none() && !spec.is_empty() {
-                        a.path = file_part;
-                        a.symbol = Some(spec);
-                    }
-                } else if !file_part.is_empty()
-                    && spec
-                        .chars()
-                        .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
-                {
-                    a.path = file_part;
-                    a.lines = Some(spec.replace('-', ":"));
-                }
-            }
-        }
         if a.lines.is_none() && (a.start_line.is_some() || a.end_line.is_some()) {
             let s = a.start_line.unwrap_or(1);
             let e = a.end_line.map(|v| v.to_string()).unwrap_or_default();
@@ -478,7 +441,53 @@ impl Tool for ReadTool {
     }
 }
 
+fn parse_read_path_spec(a: &mut ReadArgs, ctx: &ToolContext<'_>) {
+    if let Some(rest) = a.path.strip_prefix("file://") {
+        a.path = rest.to_string();
+    }
+    if a.lines.is_none()
+        && !ctx
+            .resolve(&a.path, false)
+            .map(|p| p.exists())
+            .unwrap_or(false)
+    {
+        let parsed = if let Some((file_part, sym_or_lines)) = a.path.rsplit_once('#') {
+            Some((file_part.to_string(), sym_or_lines.to_string(), true))
+        } else if let Some((file_part, line_part)) = a.path.rsplit_once(':') {
+            Some((file_part.to_string(), line_part.to_string(), false))
+        } else {
+            None
+        };
+        if let Some((file_part, spec, is_hash)) = parsed {
+            if is_hash {
+                if let Some(rest) = spec.strip_prefix('L') {
+                    let cleaned = rest.replace('L', "").replace('-', ":");
+                    a.path = file_part;
+                    a.lines = Some(cleaned);
+                } else if spec
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
+                {
+                    a.path = file_part;
+                    a.lines = Some(spec.replace('-', ":"));
+                } else if a.symbol.is_none() && !spec.is_empty() {
+                    a.path = file_part;
+                    a.symbol = Some(spec);
+                }
+            } else if !file_part.is_empty()
+                && spec
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == '-' || c == ':')
+            {
+                a.path = file_part;
+                a.lines = Some(spec.replace('-', ":"));
+            }
+        }
+    }
+}
+
 fn read_single(mut a: ReadArgs, ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
+    parse_read_path_spec(&mut a, ctx);
     if a.path.is_empty() {
         return Err(WErr::invalid_args(
             "read requires path or paths",
@@ -1659,10 +1668,6 @@ impl Tool for EditTool {
             if !new.ends_with('\n') {
                 new.push('\n');
             }
-            util::atomic_write(&abs, new.as_bytes())?;
-            ctx.ledger.invalidate_path(&display);
-            ctx.ledger.invalidate_searches();
-            ctx.workspace.invalidate();
             let action = if a.prepend { "prepended" } else { "appended" };
             if a.dry_run {
                 let mut r = ToolResult::new(
@@ -1675,6 +1680,10 @@ impl Tool for EditTool {
                 r.meta.counts.insert("edited".into(), 1);
                 return Ok(r);
             }
+            util::atomic_write(&abs, new.as_bytes())?;
+            ctx.ledger.invalidate_path(&display);
+            ctx.ledger.invalidate_searches();
+            ctx.workspace.invalidate();
             let mut r = ToolResult::new(
                 "edit",
                 format!("{action} {display} (+{} lines)", content.lines().count()),
@@ -1727,6 +1736,11 @@ impl Tool for EditTool {
                     format!("'{display}' is a directory"),
                     "edit only files",
                 ));
+            }
+            if a.dry_run {
+                let mut r = ToolResult::new("edit", format!("preview deleted {display}"));
+                r.meta.counts.insert("deleted".into(), 1);
+                return Ok(r);
             }
             std::fs::remove_file(&abs)
                 .map_err(|e| WErr::new("permission_denied", format!("delete {display}: {e}")))?;
@@ -1874,7 +1888,7 @@ impl Tool for EditTool {
                 let sign = match change.tag() {
                     similar::ChangeTag::Delete => "-",
                     similar::ChangeTag::Insert => "+",
-                    similar::ChangeTag::Equal => " ",
+                    similar::ChangeTag::Equal => continue,
                 };
                 diff_lines.push(format!(
                     "{sign}{}",
@@ -2209,23 +2223,34 @@ impl Tool for ExpandTool {
                             let text_cow = String::from_utf8_lossy(&bytes);
                             let all: Vec<&str> = text_cow.lines().collect();
                             let (filtered, _) = filter_expand_lines(&all, &a, grep_re.as_ref())?;
+                            let limit = a.head.unwrap_or(200) as usize;
+                            let omitted = filtered.len().saturating_sub(limit);
                             let lines: Vec<String> = filtered
                                 .into_iter()
-                                .take(a.head.unwrap_or(200) as usize)
+                                .take(limit)
                                 .map(|s| s.to_string())
                                 .collect();
+                            let shown = lines.len();
                             r.push(Item::new(
                                 ItemClass::High,
                                 5.0,
-                                vec![format!("{hid} ({} lines, {}):", lines.len(), rec.kind)],
+                                vec![format!("{hid} ({shown} lines, {}):", rec.kind)],
                             ));
                             r.push(Item::new(ItemClass::Low, 1.0, lines));
+                            if omitted > 0 {
+                                r.push(Item::new(
+                                    ItemClass::High,
+                                    5.0,
+                                    vec![format!("...+{} lines ({})", omitted, hid)],
+                                ));
+                            }
                         }
                     }
                     Err(e) => {
+                        r.meta.ok = false;
                         r.push(Item::new(
-                            ItemClass::High,
-                            5.0,
+                            ItemClass::MustKeep,
+                            1000.0,
                             vec![format!("{hid} error: {}", e.render())],
                         ));
                     }

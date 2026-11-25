@@ -905,4 +905,258 @@ fn test_ergonomic_tool_features() {
         "{}",
         fo_limited.text
     );
+
+}
+
+#[test]
+fn test_user_reported_bugs() {
+    let (root, _) = setup_named("user_bugs");
+    let mut cfg = Config::default();
+    cfg.exec.allow_shell = true;
+    cfg.session.default_tier = "execute".to_string();
+    let registry = Arc::new(wxec_tools::registry());
+    let parsers = Arc::new(ParserRegistry::new());
+    let mut d = Dispatcher::new(cfg, &root, registry, parsers).unwrap();
+
+    // 37. sh/run on success preserves omission marker + full handle for long output
+    let seq_res = call(&mut d, "sh", json!({"command": "seq 1 500"}));
+    assert!(seq_res.ok, "{}", seq_res.text);
+    assert!(
+        seq_res.text.contains("...+493 lines omitted (~"),
+        "expected omission marker with handle: {}",
+        seq_res.text
+    );
+    assert!(seq_res.text.contains("500"), "{}", seq_res.text);
+    let seq_hid = format!(
+        "~{}",
+        seq_res
+            .text
+            .split("(~")
+            .nth(1)
+            .and_then(|s| s.split(')').next())
+            .expect("handle id in seq output")
+    );
+    let seq_expand = call(
+        &mut d,
+        "expand",
+        json!({"ref": seq_hid, "lines": "249:251"}),
+    );
+    assert!(seq_expand.ok, "{}", seq_expand.text);
+    assert!(seq_expand.text.contains("250"), "{}", seq_expand.text);
+
+    // 38. sh 36-line output ending in "0 failed" does not drop earlier lines without marker+handle
+    let lines36 = call(
+        &mut d,
+        "sh",
+        json!({"command": "i=1; while [ $i -le 35 ]; do echo \"line_$i\"; i=$((i+1)); done; echo \"0 failed\""}),
+    );
+    assert!(lines36.ok, "{}", lines36.text);
+    assert!(
+        lines36.text.contains("...+29 lines omitted (~"),
+        "expected omission marker for 36-line output: {}",
+        lines36.text
+    );
+    assert!(lines36.text.contains("0 failed"), "{}", lines36.text);
+
+    // 39. check on a subdir without a project file does not silently run parent Cargo.toml
+    let py_sub = root.join("py_throwaway");
+    std::fs::create_dir_all(&py_sub).unwrap();
+    std::fs::write(py_sub.join("test_cart.py"), "def test_fail(): assert False\n").unwrap();
+    let check_sub = call(&mut d, "check", json!({"path": "py_throwaway", "kind": "test"}));
+    assert!(!check_sub.ok, "expected error, got: {}", check_sub.text);
+    assert!(
+        check_sub.text.contains("no_checker_detected"),
+        "{}",
+        check_sub.text
+    );
+
+    // 40. sh creating a file invalidates workspace walk cache so immediate search finds it
+    let _warm = call(&mut d, "search", json!({"pattern": "shell_created_needle_xyz"}));
+    let mk_file = call(
+        &mut d,
+        "sh",
+        json!({"command": "echo 'shell_created_needle_xyz' > shell_created.txt"}),
+    );
+    assert!(mk_file.ok, "{}", mk_file.text);
+    let found_after_sh = call(&mut d, "search", json!({"pattern": "shell_created_needle_xyz"}));
+    assert!(found_after_sh.ok, "{}", found_after_sh.text);
+    assert!(
+        found_after_sh.text.contains("shell_created.txt"),
+        "search missed file created by sh: {}",
+        found_after_sh.text
+    );
+
+    // 41. batch with stop_on_error stops after non-zero exit from sh
+    let batch_stop = call(
+        &mut d,
+        "batch",
+        json!({
+            "stop_on_error": true,
+            "calls": [
+                {"tool": "sh", "args": {"command": "exit 1"}},
+                {"tool": "sh", "args": {"command": "echo should_not_run"}}
+            ]
+        }),
+    );
+    assert!(!batch_stop.ok, "batch should fail: {}", batch_stop.text);
+    assert!(batch_stop.text.contains("1 error"), "{}", batch_stop.text);
+    assert!(batch_stop.text.contains("1 skipped"), "{}", batch_stop.text);
+    assert!(
+        !batch_stop.text.contains("should_not_run"),
+        "second step should not have run: {}",
+        batch_stop.text
+    );
+
+    // 42. tree and search under ignored folder (target/) explain why 0 results
+    std::fs::create_dir_all(root.join("target")).unwrap();
+    std::fs::write(root.join("target/artifact.txt"), "needle\n").unwrap();
+    let tree_ig = call(&mut d, "tree", json!({"path": "target"}));
+    assert!(tree_ig.ok, "{}", tree_ig.text);
+    assert!(
+        tree_ig.text.contains("ignored directory 'target'"),
+        "{}",
+        tree_ig.text
+    );
+    let search_ig = call(&mut d, "search", json!({"pattern": "needle", "path": "target"}));
+    assert!(search_ig.ok, "{}", search_ig.text);
+    assert!(
+        search_ig.text.contains("ignored directory 'target'"),
+        "{}",
+        search_ig.text
+    );
+
+    // 43. run accepts double-stringified JSON array argv
+    let json_argv = call(
+        &mut d,
+        "run",
+        json!({"argv": "[\"echo\", \"json_argv_ok\"]"}),
+    );
+    assert!(json_argv.ok, "{}", json_argv.text);
+    assert!(json_argv.text.contains("json_argv_ok"), "{}", json_argv.text);
+
+    // 44. edit dry_run=true does not mutate disk on append or delete
+    let dry_file = root.join("dry_guard.txt");
+    std::fs::write(&dry_file, "initial\n").unwrap();
+    let dry_append = call(
+        &mut d,
+        "edit",
+        json!({"path": "dry_guard.txt", "append": true, "content": "appended\n", "dry_run": true}),
+    );
+    assert!(dry_append.ok, "{}", dry_append.text);
+    assert_eq!(
+        std::fs::read_to_string(&dry_file).unwrap(),
+        "initial\n",
+        "dry_run append mutated file on disk"
+    );
+    let dry_del = call(
+        &mut d,
+        "edit",
+        json!({"path": "dry_guard.txt", "delete": true, "dry_run": true}),
+    );
+    assert!(dry_del.ok, "{}", dry_del.text);
+    assert!(dry_file.exists(), "dry_run delete removed file from disk");
+
+    // 45. batch with non-mutating check calls does not wipe output via only_actions rollup
+    let batch_checks = call(
+        &mut d,
+        "batch",
+        json!({
+            "calls": [
+                {"tool": "check", "args": {"kind": "test"}},
+                {"tool": "check", "args": {"kind": "lint"}}
+            ]
+        }),
+    );
+    assert!(batch_checks.ok, "{}", batch_checks.text);
+    assert!(
+        !batch_checks.text.starts_with("batch rollup:"),
+        "check outputs should not be wiped by only_actions rollup: {}",
+        batch_checks.text
+    );
+    assert!(
+        batch_checks.text.contains("#1 check ok"),
+        "{}",
+        batch_checks.text
+    );
+
+    // 46. multi-handle expand reports omitted line count and fails if a handle is missing
+    let h1 = seq_hid.clone();
+    let lines36_hid = format!(
+        "~{}",
+        lines36
+            .text
+            .split("(~")
+            .nth(1)
+            .and_then(|s| s.split(')').next())
+            .expect("handle id in 36-line output")
+    );
+    let multi_exp = call(
+        &mut d,
+        "expand",
+        json!({"refs": [h1, lines36_hid]}),
+    );
+    assert!(multi_exp.ok, "{}", multi_exp.text);
+    assert!(
+        multi_exp.text.contains("...+300 lines ("),
+        "expected omission marker in multi-handle expand: {}",
+        multi_exp.text
+    );
+    let multi_err = call(
+        &mut d,
+        "expand",
+        json!({"refs": [seq_hid, "~nonexistent999"]}),
+    );
+    assert!(!multi_err.ok, "missing handle should set ok=false: {}", multi_err.text);
+
+    // 47. search cache_key distinguishes case_insensitive and word flags
+    std::fs::write(root.join("case_word.txt"), "foobarbaz\nCamelCaseValue\n").unwrap();
+    let s1 = call(&mut d, "search", json!({"pattern": "camelcasevalue"}));
+    assert!(s1.ok, "{}", s1.text);
+    assert!(s1.text.contains("0 matches"), "{}", s1.text);
+    let s2 = call(
+        &mut d,
+        "search",
+        json!({"pattern": "camelcasevalue", "case_insensitive": true}),
+    );
+    assert!(s2.ok, "{}", s2.text);
+    assert!(
+        !s2.text.contains("unchanged search") && s2.text.contains("case_word.txt"),
+        "case_insensitive search hit wrong cache entry: {}",
+        s2.text
+    );
+    let s3 = call(&mut d, "search", json!({"pattern": "foo"}));
+    assert!(s3.ok && s3.text.contains("case_word.txt"), "{}", s3.text);
+    let s4 = call(&mut d, "search", json!({"pattern": "foo", "word": true}));
+    assert!(s4.ok, "{}", s4.text);
+    assert!(
+        !s4.text.contains("unchanged search") && s4.text.contains("0 matches"),
+        "word=true search hit wrong cache entry: {}",
+        s4.text
+    );
+
+    // 48. multi-file read supports path:lines and path#symbol specs per entry
+    let multi_spec = call(
+        &mut d,
+        "read",
+        json!({"paths": ["src/config.rs:2-3", "src/main.rs#main"]}),
+    );
+    assert!(multi_spec.ok, "{}", multi_spec.text);
+    assert!(
+        multi_spec.text.contains("parse_config") && multi_spec.text.contains("fn main()"),
+        "multi-file read should parse per-path specs: {}",
+        multi_spec.text
+    );
+
+    // 49. outside-workspace nonexistent path fails with outside_workspace, not not_found (no existence probing)
+    let outside_probe = call(
+        &mut d,
+        "tree",
+        json!({"path": "/nonexistent_outside_wxec_probe_99999"}),
+    );
+    assert!(!outside_probe.ok, "{}", outside_probe.text);
+    assert!(
+        outside_probe.text.contains("outside_workspace"),
+        "expected outside_workspace before existence check: {}",
+        outside_probe.text
+    );
 }

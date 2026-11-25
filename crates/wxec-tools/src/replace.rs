@@ -358,9 +358,14 @@ impl Tool for ReplaceTool {
         }
 
         if total_replacements == 0 {
+            let msg = if let Some(ig) = bases_rel.iter().find_map(|b| util::ignored_component(b)) {
+                format!("0 matches (path is under built-in ignored directory '{ig}')")
+            } else {
+                "0 matches".to_string()
+            };
             return Err(WErr::with_hint(
                 "replace_not_found",
-                "0 matches",
+                msg,
                 "check find/glob/path; use word=false or regex for patterns",
             ));
         }

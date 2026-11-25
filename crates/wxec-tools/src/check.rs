@@ -103,7 +103,23 @@ impl Tool for CheckTool {
         } else {
             target.parent().unwrap_or(ctx.root).to_path_buf()
         };
-        let project = detect_root(ctx.root, &base).unwrap_or_else(|| base.clone());
+        let detected = detect_root(ctx.root, &base);
+        if target.is_dir() && base != ctx.root {
+            if let Some(ref found) = detected {
+                if found != &base && found == ctx.root {
+                    return Err(WErr::with_hint(
+                        "no_checker_detected",
+                        format!(
+                            "no project file found in {} (nearest parent project is at {})",
+                            ctx.rel(&base),
+                            ctx.rel(found)
+                        ),
+                        "add a Cargo.toml, package.json, pyproject.toml/setup.cfg or go.mod, or run the tool directly with `w run`",
+                    ));
+                }
+            }
+        }
+        let project = detected.unwrap_or_else(|| base.clone());
         let cache_key = (project.clone(), kind.clone());
         let mut commands = {
             let cached = detect_cache()
@@ -139,6 +155,9 @@ impl Tool for CheckTool {
         }
 
         let mut result = ToolResult::new("check", String::new());
+        if project != base {
+            result.note(format!("root: {}", util::display_path(ctx.root, &project)));
+        }
         let mut diagnostics: Vec<Diagnostic> = Vec::new();
         let mut tests: Vec<TestResult> = Vec::new();
         let mut all_ok = true;

@@ -146,10 +146,11 @@ impl Tool for SearchTool {
                 bases_rel.push(ctx.rel(&base));
             }
         }
+        let is_case_insensitive = a.case_insensitive || a.case_sensitive == Some(false);
         let mut cache_bases = bases_rel.clone();
         cache_bases.sort();
         let cache_key = format!(
-            "{}\0{}\0{}\0{}\0{}\0{}\0{}\0{}",
+            "{}\0{}\0{}\0{}\0{}\0{}\0{}\0{}\0{}\0{}",
             a.pattern,
             a.mode,
             cache_bases.join("\0"),
@@ -157,7 +158,9 @@ impl Tool for SearchTool {
             a.context,
             limit,
             a.stats,
-            a.files_only
+            a.files_only,
+            is_case_insensitive,
+            a.word
         );
         if let Some(seen) = ctx
             .ledger
@@ -189,7 +192,6 @@ impl Tool for SearchTool {
             return Ok(r);
         }
         let gs = util::globset(a.glob.as_deref())?;
-        let is_case_insensitive = a.case_insensitive || a.case_sensitive == Some(false);
         let regex = if a.mode == "regex" || a.word || is_case_insensitive {
             let pat = if a.mode == "regex" {
                 if a.word {
@@ -408,6 +410,11 @@ impl Tool for SearchTool {
         }
         if walk.truncated {
             result.note("search_truncated");
+        }
+        if total == 0 {
+            if let Some(ig) = bases_rel.iter().find_map(|b| util::ignored_component(b)) {
+                result.note(format!("path is under built-in ignored directory '{ig}'"));
+            }
         }
         if total == 0 && stats.skipped_binary > 0 && ctx.config.output.verbosity == "verbose" {
             result.note(format!(

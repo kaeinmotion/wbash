@@ -286,6 +286,13 @@ where
         where
             E: serde::de::Error,
         {
+            if s.trim_start().starts_with('[') {
+                if let Ok(items) = serde_json::from_str::<Vec<String>>(s) {
+                    if !items.is_empty() {
+                        return Ok(items);
+                    }
+                }
+            }
             let parts = split_shell_tokens(s);
             if parts.is_empty() {
                 Ok(vec![s.to_string()])
@@ -345,6 +352,11 @@ where
         where
             E: serde::de::Error,
         {
+            if s.trim_start().starts_with('[') {
+                if let Ok(items) = serde_json::from_str::<Vec<String>>(s) {
+                    return if items.is_empty() { Ok(None) } else { Ok(Some(items)) };
+                }
+            }
             let parts = split_shell_tokens(s);
             if parts.is_empty() {
                 if s.trim().is_empty() {

@@ -47,6 +47,17 @@ fn empty_obj() -> Value {
     json!({})
 }
 
+fn is_rollup_action(canonical_tool: &str, args: &Value) -> bool {
+    match canonical_tool {
+        "edit" | "replace" => true,
+        "git" => matches!(
+            args.get("op").and_then(|v| v.as_str()),
+            Some("add" | "commit" | "push" | "checkout" | "switch" | "pull")
+        ),
+        _ => false,
+    }
+}
+
 impl Tool for BatchTool {
     fn name(&self) -> &'static str {
         "batch"
@@ -137,7 +148,7 @@ impl Tool for BatchTool {
                 .get(&call.tool)
                 .map(|t| t.name())
                 .unwrap_or(call.tool.as_str());
-            let is_action = matches!(canonical_tool, "edit" | "check" | "git" | "replace");
+            let is_action = is_rollup_action(canonical_tool, &call_args);
             let items_start = result.items.len();
             if canonical_tool == "edit" {
                 if let Some(path_val) = call_args.get("path").and_then(|v| v.as_str()) {
@@ -160,7 +171,12 @@ impl Tool for BatchTool {
             let per_child = (budget_left.saturating_sub(24) / remaining.max(1)).max(48);
             match invoke_tool(ctx.registry, &call.tool, &call_args, ctx) {
                 Ok(child) => {
-                    ok_count += 1;
+                    let child_ok = child.meta.ok;
+                    if child_ok {
+                        ok_count += 1;
+                    } else {
+                        err_count += 1;
+                    }
                     if let Some(h) = child.meta.strings.get("hash") {
                         if let Some(p) = call.args.get("path").and_then(|v| v.as_str()) {
                             let norm_path = p.strip_prefix("file://").unwrap_or(p);
@@ -191,15 +207,23 @@ impl Tool for BatchTool {
                             verbosity: Some(ctx.config.output.verbosity.clone()),
                         },
                     )?;
-                    let header = format!("#{} {} ok", i + 1, call.tool);
+                    let status_word = if child_ok { "ok" } else { "failed" };
+                    let header = format!("#{} {} {status_word}", i + 1, call.tool);
                     let has_text = !rendered.text.trim().is_empty();
-                    if has_text || !child.handles.is_empty() {
+                    if has_text || !child.handles.is_empty() || !child_ok {
                         let lines: Vec<&str> = rendered.text.lines().collect();
-                        if lines.len() == 1 {
+                        let hdr_class = if child_ok { ItemClass::High } else { ItemClass::MustKeep };
+                        let body_class = if child_ok { ItemClass::Low } else { ItemClass::MustKeep };
+                        let prio = if child_ok { 5.0 } else { 1000.0 };
+                        if lines.is_empty() {
+                            used_items_tokens =
+                                used_items_tokens.saturating_add(estimator::estimate_text(&header));
+                            result.push(Item::new(hdr_class, prio, vec![header]));
+                        } else if lines.len() == 1 {
                             let combined = format!("{header}: {}", lines[0]);
                             used_items_tokens = used_items_tokens
                                 .saturating_add(estimator::estimate_text(&combined));
-                            result.push(Item::new(ItemClass::High, 5.0, vec![combined]));
+                            result.push(Item::new(hdr_class, prio, vec![combined]));
                         } else {
                             used_items_tokens =
                                 used_items_tokens.saturating_add(estimator::estimate_text(&header));
@@ -207,8 +231,8 @@ impl Tool for BatchTool {
                                 .saturating_add(estimator::estimate_text(&rendered.text));
                             let line_strings: Vec<String> =
                                 lines.iter().map(|s| (*s).to_string()).collect();
-                            result.push(Item::new(ItemClass::High, 5.0, vec![header]));
-                            result.push(Item::new(ItemClass::Low, 5.0, line_strings));
+                            result.push(Item::new(hdr_class, prio, vec![header]));
+                            result.push(Item::new(body_class, prio, line_strings));
                         }
                     }
                     if is_action && result.items.len() > items_start {
@@ -232,6 +256,9 @@ impl Tool for BatchTool {
                                 hash: h.hash.clone(),
                             });
                         }
+                    }
+                    if !child_ok && a.stop_on_error {
+                        break;
                     }
                 }
                 Err(e) => {
@@ -271,7 +298,7 @@ impl Tool for BatchTool {
                 .get(&c.tool)
                 .map(|t| t.name())
                 .unwrap_or(c.tool.as_str());
-            matches!(ct, "edit" | "check" | "git" | "replace")
+            is_rollup_action(ct, &c.args)
         });
         if (a.compact || only_actions) && err_count == 0 {
             let mut parts = Vec::new();
