@@ -598,10 +598,45 @@ fn read_single(mut a: ReadArgs, ctx: &mut ToolContext<'_>) -> Result<ToolResult>
                 None
             })
             .ok_or_else(|| {
+                let sym_lc = sym.to_ascii_lowercase();
+                let bare_lc = sym_lc
+                    .rsplit_once("::")
+                    .map(|(_, b)| b)
+                    .unwrap_or(&sym_lc)
+                    .rsplit_once('.')
+                    .map(|(_, b)| b)
+                    .unwrap_or(&sym_lc);
+                let outline = ctx.symbols.symbols(&abs, &text);
+                let mut scored: Vec<(i32, &wxec_index::Symbol)> = outline
+                    .symbols
+                    .iter()
+                    .map(|s| {
+                        let sl = s.name.to_ascii_lowercase();
+                        let score = if sl.contains(bare_lc) || bare_lc.contains(&sl) {
+                            2
+                        } else if sl.chars().next() == bare_lc.chars().next() {
+                            1
+                        } else {
+                            0
+                        };
+                        (score, s)
+                    })
+                    .collect();
+                scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.start_line.cmp(&b.1.start_line)));
+                let suggestions: Vec<String> = scored
+                    .into_iter()
+                    .take(5)
+                    .map(|(_, s)| format!("{} (L{})", s.name, s.start_line))
+                    .collect();
+                let hint = if suggestions.is_empty() {
+                    format!("try: w search pattern={sym} mode=symbol")
+                } else {
+                    format!("available in {display}: {}", suggestions.join(", "))
+                };
                 WErr::with_hint(
                     "symbol_not_found",
                     format!("symbol '{sym}' in {display}"),
-                    format!("try: w search pattern={sym} mode=symbol"),
+                    hint,
                 )
             })?;
         let mut start = found.start_line.max(1).min(line_count.max(1));
