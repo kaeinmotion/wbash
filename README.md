@@ -44,24 +44,8 @@ all architectural specifications, benchmarks, tool catalogs, and client setups l
 
 ## quick start
 
-**install binary (macos & linux):**
-```sh
-curl -fsSL https://raw.githubusercontent.com/kaeinmotion/wxec/main/scripts/install.sh | sh
-```
-
-**from source:**
 ```sh
 cargo install --git https://github.com/kaeinmotion/wxec.git wxec-cli
-```
-
-**via npm wrapper:**
-```sh
-npx -y @kae/wxec
-```
-
-**via smithery:**
-```sh
-npx -y @smithery/cli install kaeinmotion/wxec --client claude
 ```
 
 ---
