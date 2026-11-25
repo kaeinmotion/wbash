@@ -2172,6 +2172,16 @@ impl Tool for ExpandTool {
                 "ref=<handle_id>",
             ));
         }
+        let grep_re = if let Some(pattern) = &a.grep {
+            Some(regex::Regex::new(pattern).map_err(|e| {
+                WErr::invalid_args(
+                    format!("invalid regex '{pattern}': {e}"),
+                    "check escaping or use a simpler pattern",
+                )
+            })?)
+        } else {
+            None
+        };
         if targets.len() > 1 {
             let mut r = ToolResult::new("expand", format!("{} handles expanded", targets.len()));
             for t in &targets {
@@ -2197,8 +2207,10 @@ impl Tool for ExpandTool {
                             ));
                         } else {
                             let text_cow = String::from_utf8_lossy(&bytes);
-                            let lines: Vec<String> = text_cow
-                                .lines()
+                            let all: Vec<&str> = text_cow.lines().collect();
+                            let (filtered, _) = filter_expand_lines(&all, &a, grep_re.as_ref())?;
+                            let lines: Vec<String> = filtered
+                                .into_iter()
                                 .take(a.head.unwrap_or(200) as usize)
                                 .map(|s| s.to_string())
                                 .collect();
@@ -2239,56 +2251,7 @@ impl Tool for ExpandTool {
         let text_cow = String::from_utf8_lossy(&bytes);
         let all: Vec<&str> = text_cow.lines().collect();
         let total = all.len();
-        let mut selected: Vec<&str> = Vec::new();
-        if let Some(pattern) = &a.grep {
-            let re = regex::Regex::new(pattern).map_err(|e| {
-                WErr::invalid_args(
-                    format!("invalid regex '{pattern}': {e}"),
-                    "check escaping or use a simpler pattern",
-                )
-            })?;
-            if let Some(spec) = &a.lines {
-                let (start, end) = parse_line_range_clamped(spec, total.max(1))?;
-                for (idx, line) in all.iter().enumerate() {
-                    let n = idx + 1;
-                    if n >= start && n <= end && re.is_match(line) {
-                        selected.push(*line);
-                    }
-                }
-            } else {
-                for line in &all {
-                    if re.is_match(line) {
-                        selected.push(*line);
-                    }
-                }
-            }
-        } else if let Some(spec) = &a.lines {
-            let (start, end) = parse_line_range_clamped(spec, total.max(1))?;
-            for (idx, line) in all.iter().enumerate() {
-                let n = idx + 1;
-                if n >= start && n <= end {
-                    selected.push(*line);
-                }
-            }
-        } else {
-            selected = all;
-        }
-        if let Some(head) = a.head {
-            selected.truncate(head as usize);
-        }
-        if let Some(tail) = a.tail {
-            let skip = selected.len().saturating_sub(tail as usize);
-            selected = selected.split_off(skip);
-        }
-        let filtered_total = selected.len();
-        let offset = a.offset as usize;
-        if offset > 0 {
-            if offset >= selected.len() {
-                selected.clear();
-            } else {
-                selected = selected.split_off(offset);
-            }
-        }
+        let (mut selected, filtered_total) = filter_expand_lines(&all, &a, grep_re.as_ref())?;
 
         let arg_filtered = a.grep.is_some()
             || a.lines.is_some()
@@ -2311,6 +2274,7 @@ impl Tool for ExpandTool {
                 selected.truncate(page_len);
             }
         }
+        let offset = a.offset as usize;
         let consumed = offset + selected.len();
         let remaining = filtered_total.saturating_sub(consumed);
         let page_truncated = !a.all && remaining > 0;
@@ -2413,6 +2377,59 @@ impl Tool for ExpandTool {
         r.meta.counts.insert("bytes".into(), rec.bytes as i64);
         Ok(r)
     }
+}
+
+fn filter_expand_lines<'a>(
+    all: &[&'a str],
+    a: &ExpandArgs,
+    grep_re: Option<&regex::Regex>,
+) -> Result<(Vec<&'a str>, usize)> {
+    let total = all.len();
+    let mut selected: Vec<&'a str> = Vec::new();
+    if let Some(re) = grep_re {
+        if let Some(spec) = &a.lines {
+            let (start, end) = parse_line_range_clamped(spec, total.max(1))?;
+            for (idx, line) in all.iter().enumerate() {
+                let n = idx + 1;
+                if n >= start && n <= end && re.is_match(line) {
+                    selected.push(*line);
+                }
+            }
+        } else {
+            for line in all {
+                if re.is_match(line) {
+                    selected.push(*line);
+                }
+            }
+        }
+    } else if let Some(spec) = &a.lines {
+        let (start, end) = parse_line_range_clamped(spec, total.max(1))?;
+        for (idx, line) in all.iter().enumerate() {
+            let n = idx + 1;
+            if n >= start && n <= end {
+                selected.push(*line);
+            }
+        }
+    } else {
+        selected = all.to_vec();
+    }
+    if let Some(head) = a.head {
+        selected.truncate(head as usize);
+    }
+    if let Some(tail) = a.tail {
+        let skip = selected.len().saturating_sub(tail as usize);
+        selected = selected.split_off(skip);
+    }
+    let filtered_total = selected.len();
+    let offset = a.offset as usize;
+    if offset > 0 {
+        if offset >= selected.len() {
+            selected.clear();
+        } else {
+            selected = selected.split_off(offset);
+        }
+    }
+    Ok((selected, filtered_total))
 }
 
 pub fn register(out: &mut Vec<std::sync::Arc<dyn Tool>>) {
