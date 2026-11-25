@@ -209,6 +209,28 @@ fn ensure_repo(ctx: &ToolContext<'_>) -> Result<()> {
     Ok(())
 }
 
+fn is_lockfile_or_generated(name: &str) -> bool {
+    let base = Path::new(name)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(name);
+    matches!(
+        base,
+        "Cargo.lock"
+            | "package-lock.json"
+            | "pnpm-lock.yaml"
+            | "yarn.lock"
+            | "poetry.lock"
+            | "uv.lock"
+            | "Gemfile.lock"
+            | "go.sum"
+            | "composer.lock"
+            | "bun.lockb"
+            | "bun.lock"
+    ) || name.ends_with(".min.js")
+        || name.ends_with(".min.css")
+}
+
 fn status(ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
     let out = git(
         ctx,
@@ -359,7 +381,8 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
     if let Some(r) = &reference {
         argv.push(r.clone());
     }
-    if !final_paths.is_empty() {
+    let explicit_paths = !final_paths.is_empty();
+    if explicit_paths {
         argv.push("--".to_string());
         argv.extend(final_paths);
     }
@@ -440,8 +463,14 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
         let display_limit = 60usize;
         let mut emitted_changes = 0usize;
         let mut omitted_count = 0usize;
+        let mut any_lockfile_elided = false;
+        let mut cur_lockfile: Option<(String, usize, usize)> = None;
         for line in text.lines() {
             if let Some(rest) = line.strip_prefix("diff --git ") {
+                if let Some((lname, lp, lm)) = cur_lockfile.take() {
+                    r.high(format!("{lname}: lockfile (+{lp} -{lm}, elided)"));
+                    any_lockfile_elided = true;
+                }
                 files += 1;
                 let name = rest
                     .split_whitespace()
@@ -449,8 +478,20 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
                     .map(|s| s.trim_start_matches("b/"))
                     .unwrap_or(rest)
                     .to_string();
-                if seen_file.insert(name.clone()) && emitted_changes < display_limit {
+                if !explicit_paths && is_lockfile_or_generated(&name) {
+                    cur_lockfile = Some((name, 0, 0));
+                } else if seen_file.insert(name.clone()) && emitted_changes < display_limit {
                     r.high(format!("{name}:"));
+                }
+                continue;
+            }
+            if let Some((_, lp, lm)) = cur_lockfile.as_mut() {
+                if line.starts_with('+') && !line.starts_with("+++ ") {
+                    plus += 1;
+                    *lp += 1;
+                } else if line.starts_with('-') && !line.starts_with("--- ") {
+                    minus += 1;
+                    *lm += 1;
                 }
                 continue;
             }
@@ -491,7 +532,11 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
                 r.low(line.to_string());
             }
         }
-        if omitted_count > 0 {
+        if let Some((lname, lp, lm)) = cur_lockfile.take() {
+            r.high(format!("{lname}: lockfile (+{lp} -{lm}, elided)"));
+            any_lockfile_elided = true;
+        }
+        if omitted_count > 0 || any_lockfile_elided {
             let h = ctx.handles.put("diff", text.as_bytes(), "text")?;
             r.handle(HandleRef {
                 id: h.id.clone(),
@@ -499,7 +544,11 @@ fn diff(ctx: &mut ToolContext<'_>, a: &GitArgs) -> Result<ToolResult> {
                 bytes: h.bytes,
                 hash: h.hash.clone(),
             });
-            r.low(format!("...+{omitted_count} lines ({})", h.id));
+            if omitted_count > 0 {
+                r.low(format!("...+{omitted_count} lines ({})", h.id));
+            } else {
+                r.low(format!("full: {}", h.id));
+            }
         }
         r.header = if text.trim().is_empty() {
             "0 changed, +0 -0".to_string()

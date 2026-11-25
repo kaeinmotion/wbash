@@ -30,6 +30,7 @@ pub enum Kind {
     Ruff,
     GoTest,
     GoVet,
+    Zig,
     Toml(Box<TomlParser>),
 }
 
@@ -88,6 +89,7 @@ impl ParserRegistry {
             ),
             ("go-test", 90, Kind::GoTest, vec![], None),
             ("go-vet", 90, Kind::GoVet, vec![], None),
+            ("zig", 90, Kind::Zig, vec![], None),
         ];
         let mut entries: Vec<ParserEntry> = native
             .into_iter()
@@ -226,6 +228,7 @@ impl ParserSet for ParserRegistry {
                 Kind::Ruff => parse_ruff(exit, stdout),
                 Kind::GoTest => parse_go_test(stdout),
                 Kind::GoVet => parse_go_vet(exit, stdout, stderr),
+                Kind::Zig => parse_zig(exit, stdout, stderr),
                 Kind::Toml(p) => p.parse(stdout, stderr),
             };
             if let Some(mut run) = parsed {
@@ -286,6 +289,7 @@ fn matches_entry(entry: &ParserEntry, argv: &[String]) -> bool {
         Kind::Ruff => b == "ruff" && args.contains(&"check"),
         Kind::GoTest => b == "go" && args.get(1) == Some(&"test"),
         Kind::GoVet => b == "go" && matches!(args.get(1), Some(&"vet") | Some(&"build")),
+        Kind::Zig => b == "zig" && matches!(args.get(1), Some(&"build") | Some(&"test")),
         Kind::Toml(p) => p.matches(argv),
     }
 }
@@ -1002,6 +1006,41 @@ fn parse_go_vet(exit: &Exit, stdout: &str, stderr: &str) -> Option<ParsedRun> {
     if run.diagnostics.is_empty() {
         if exit.is_success() {
             run.summary = Some("go vet ok".to_string());
+            return Some(run);
+        }
+        return None;
+    }
+    summarize_diagnostics(&mut run);
+    Some(run)
+}
+
+fn parse_zig(exit: &Exit, stdout: &str, stderr: &str) -> Option<ParsedRun> {
+    let re = Regex::new(r"^\s*([^\s:]+\.zig):(\d+):(\d+):\s*(error|warning|note):\s*(.*)$").ok()?;
+    let mut run = ParsedRun::default();
+    for line in stdout.lines().chain(stderr.lines()) {
+        if let Some(caps) = re.captures(line) {
+            let sev = match caps.get(4).map(|m| m.as_str()).unwrap_or("") {
+                "error" => Severity::Error,
+                "warning" => Severity::Warn,
+                _ => Severity::Info,
+            };
+            run.diagnostics.push(Diagnostic {
+                file: caps.get(1).map(|m| m.as_str()).unwrap_or("").to_string(),
+                line: caps
+                    .get(2)
+                    .and_then(|m| m.as_str().parse().ok())
+                    .unwrap_or(1),
+                col: caps.get(3).and_then(|m| m.as_str().parse().ok()),
+                severity: sev,
+                code: None,
+                message: caps.get(5).map(|m| m.as_str()).unwrap_or("").to_string(),
+                tool: Some("zig".to_string()),
+            });
+        }
+    }
+    if run.diagnostics.is_empty() {
+        if exit.is_success() {
+            run.summary = Some("zig ok".to_string());
             return Some(run);
         }
         return None;
