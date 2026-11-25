@@ -125,7 +125,7 @@ impl Tool for CheckTool {
             if !user_args.is_empty() {
                 for (label, argv) in &mut commands {
                     if kind != "all" || label.contains("test") || label.contains("pytest") {
-                        argv.extend(user_args.iter().cloned());
+                        apply_test_filter(label, argv, user_args);
                     }
                 }
             }
@@ -607,13 +607,62 @@ fn find_executable(name: &str, project: &Path) -> Option<String> {
     None
 }
 
+fn apply_test_filter(label: &str, argv: &mut Vec<String>, user_args: &[String]) {
+    if user_args.len() == 1 && !user_args[0].starts_with('-') {
+        let f = &user_args[0];
+        if label == "go test" {
+            argv.push("-run".to_string());
+            argv.push(f.clone());
+            return;
+        }
+        if label == "pytest" && !f.ends_with(".py") && !f.contains('/') {
+            argv.push("-k".to_string());
+            argv.push(f.clone());
+            return;
+        }
+        if label == "mvn test" {
+            argv.push(format!("-Dtest={f}"));
+            return;
+        }
+        if label == "gradle test" {
+            argv.push("--tests".to_string());
+            argv.push(f.clone());
+            return;
+        }
+    }
+    argv.extend(user_args.iter().cloned());
+}
+
 pub fn register(out: &mut Vec<std::sync::Arc<dyn Tool>>) {
     out.push(std::sync::Arc::new(CheckTool));
 }
 
 #[cfg(test)]
 mod tests {
-    use super::detect_commands;
+    use super::{apply_test_filter, detect_commands};
+
+    #[test]
+    fn polyglot_test_filter_translation() {
+        let mut go = vec!["go".into(), "test".into(), "./...".into()];
+        apply_test_filter("go test", &mut go, &["TestCalc".into()]);
+        assert_eq!(go, vec!["go", "test", "./...", "-run", "TestCalc"]);
+
+        let mut py = vec!["pytest".into(), "-q".into()];
+        apply_test_filter("pytest", &mut py, &["test_billing".into()]);
+        assert_eq!(py, vec!["pytest", "-q", "-k", "test_billing"]);
+
+        let mut py_file = vec!["pytest".into(), "-q".into()];
+        apply_test_filter("pytest", &mut py_file, &["tests/test_a.py".into()]);
+        assert_eq!(py_file, vec!["pytest", "-q", "tests/test_a.py"]);
+
+        let mut mvn = vec!["mvn".into(), "-q".into(), "test".into()];
+        apply_test_filter("mvn test", &mut mvn, &["UserServiceTest".into()]);
+        assert_eq!(mvn, vec!["mvn", "-q", "test", "-Dtest=UserServiceTest"]);
+
+        let mut gradle = vec!["gradle".into(), "test".into()];
+        apply_test_filter("gradle test", &mut gradle, &["UserTest".into()]);
+        assert_eq!(gradle, vec!["gradle", "test", "--tests", "UserTest"]);
+    }
 
     #[test]
     fn rust_all_skips_redundant_check() {
