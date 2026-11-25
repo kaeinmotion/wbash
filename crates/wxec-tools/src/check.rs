@@ -73,7 +73,8 @@ impl Tool for CheckTool {
             "properties": {
                 "kind": {"type": "string", "enum": ["all", "build", "lint", "types", "test"]},
                 "path": {"type": "string"},
-                "args": {"type": ["string", "array"]}
+                "args": {"type": ["string", "array"]},
+                "filter": {"type": "string"}
             },
         })
     }
@@ -376,6 +377,11 @@ fn detect_root(root: &Path, start: &Path) -> Option<PathBuf> {
             "setup.cfg",
             "requirements.txt",
             "go.mod",
+            "build.zig",
+            "Gemfile",
+            "pom.xml",
+            "build.gradle",
+            "build.gradle.kts",
         ] {
             if cur.join(marker).exists() {
                 return Some(cur);
@@ -493,6 +499,44 @@ fn detect_commands(project: &Path, kind: &str) -> Result<Vec<(String, Vec<String
                 vec![runner.to_string(), "run".to_string(), "build".to_string()]
             };
             out.push((format!("{runner} build"), cmd));
+        }
+    }
+
+    if project.join("build.zig").exists() {
+        if want("build") {
+            out.push(("zig build".to_string(), s(&["zig", "build"])));
+        }
+        if want("test") {
+            out.push(("zig test".to_string(), s(&["zig", "build", "test"])));
+        }
+    }
+
+    if project.join("Gemfile").exists() {
+        if want("test") {
+            out.push(("rspec".to_string(), s(&["bundle", "exec", "rspec"])));
+        }
+        if want("lint") {
+            out.push(("rubocop".to_string(), s(&["bundle", "exec", "rubocop"])));
+        }
+    }
+
+    if project.join("pom.xml").exists() {
+        if want("build") {
+            out.push(("mvn compile".to_string(), s(&["mvn", "-q", "compile"])));
+        }
+        if want("test") {
+            out.push(("mvn test".to_string(), s(&["mvn", "-q", "test"])));
+        }
+    }
+
+    if project.join("build.gradle").exists() || project.join("build.gradle.kts").exists() {
+        let gradle = if project.join("gradlew").exists() {
+            "./gradlew"
+        } else {
+            "gradle"
+        };
+        if want("test") {
+            out.push(("gradle test".to_string(), s(&[gradle, "test"])));
         }
     }
 

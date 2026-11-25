@@ -459,8 +459,7 @@ impl Tool for ReadTool {
                 let mut single_args = a.clone();
                 single_args.path = p.clone();
                 single_args.paths.clear();
-                let sub =
-                    self.call(&serde_json::to_value(&single_args).unwrap_or_default(), ctx)?;
+                let sub = read_single(single_args, ctx)?;
                 r.push(Item::new(
                     ItemClass::High,
                     5.0,
@@ -475,469 +474,425 @@ impl Tool for ReadTool {
             }
             return Ok(r);
         }
-        if a.path.is_empty() {
-            return Err(WErr::invalid_args(
-                "read requires path or paths",
-                "read path=<file>",
-            ));
+        read_single(a, ctx)
+    }
+}
+
+fn read_single(mut a: ReadArgs, ctx: &mut ToolContext<'_>) -> Result<ToolResult> {
+    if a.path.is_empty() {
+        return Err(WErr::invalid_args(
+            "read requires path or paths",
+            "read path=<file>",
+        ));
+    }
+    let abs = resolve_workspace_path(ctx, &a.path)?;
+    a.path = ctx.rel(&abs);
+    if abs.is_dir() {
+        if let Some(tree_tool) = ctx.registry.get("tree") {
+            return tree_tool.call(&json!({"path": a.path, "depth": 2}), ctx);
         }
-        let abs = resolve_workspace_path(ctx, &a.path)?;
-        a.path = ctx.rel(&abs);
-        if abs.is_dir() {
-            if let Some(tree_tool) = ctx.registry.get("tree") {
-                return tree_tool.call(&json!({"path": a.path, "depth": 2}), ctx);
-            }
+        return Err(WErr::with_hint(
+            "is_directory",
+            format!("'{}' is a directory", a.path),
+            "use `w tree path=<dir>`",
+        ));
+    }
+    let file = wxec_index::read_text(&abs)
+        .map_err(|e| WErr::new("not_found", format!("cannot read '{}': {e}", a.path)))?;
+    let full_hex = hash::hash_bytes(file.content.as_bytes());
+    let short = hash::short(&full_hex);
+    if let Some(expect) = &a.expect_hash {
+        let exp = expect.trim_start_matches("b3:");
+        let ok = !exp.is_empty()
+            && (expect == &short
+                || expect == &full_hex
+                || full_hex.starts_with(exp)
+                || short.trim_start_matches("b3:").starts_with(exp));
+        if !ok {
             return Err(WErr::with_hint(
-                "is_directory",
-                format!("'{}' is a directory", a.path),
-                "use `w tree path=<dir>`",
+                "hash_mismatch",
+                format!("current={short}"),
+                "re-read the file before editing",
             ));
         }
-        let file = wxec_index::read_text(&abs)
-            .map_err(|e| WErr::new("not_found", format!("cannot read '{}': {e}", a.path)))?;
-        let full_hex = hash::hash_bytes(file.content.as_bytes());
+    }
+    if file.binary {
+        if a.symbol.is_some() || a.lines.is_some() || a.outline {
+            return Err(WErr::with_hint(
+                "binary_unsupported",
+                format!("'{}' is binary", a.path),
+                "read binary files without lines/symbol/outline filters",
+            ));
+        }
+        let raw = std::fs::read(&abs).unwrap_or_default();
+        let full_hex = hash::hash_bytes(&raw);
         let short = hash::short(&full_hex);
-        if let Some(expect) = &a.expect_hash {
-            let exp = expect.trim_start_matches("b3:");
-            let ok = !exp.is_empty()
-                && (expect == &short
-                    || expect == &full_hex
-                    || full_hex.starts_with(exp)
-                    || short.trim_start_matches("b3:").starts_with(exp));
-            if !ok {
-                return Err(WErr::with_hint(
-                    "hash_mismatch",
-                    format!("current={short}"),
-                    "re-read the file before editing",
-                ));
-            }
-        }
-        if file.binary {
-            if a.symbol.is_some() || a.lines.is_some() || a.outline {
-                return Err(WErr::with_hint(
-                    "binary_unsupported",
-                    format!("'{}' is binary", a.path),
-                    "read binary files without lines/symbol/outline filters",
-                ));
-            }
-            let raw = std::fs::read(&abs).unwrap_or_default();
-            let full_hex = hash::hash_bytes(&raw);
-            let short = hash::short(&full_hex);
-            let mut r = ToolResult::new(
-                "read",
-                format!("binary {} {} bytes {short}", a.path, raw.len()),
-            );
-            r.meta.counts.insert("bytes".into(), raw.len() as i64);
-            return Ok(r);
-        }
-
-        let display = ctx.rel(&abs);
-        let text = file.content;
-        let lines: Vec<&str> = text.lines().collect();
-        let line_count = lines.len();
-        let mtime_ms = std::fs::metadata(&abs)
-            .map(|m| wxec_core::types::file_mtime_ms(&m))
-            .unwrap_or(0);
-
-        if let Some(sym) = &a.symbol {
-            let found = ctx
-                .symbols
-                .find_symbol(&abs, &text, sym)
-                .or_else(|| {
-                    let bare_sym = sym.rsplit_once("::").map(|(_, b)| b).unwrap_or(sym);
-                    let bare_sym = bare_sym
-                        .rsplit_once('.')
-                        .map(|(_, b)| b)
-                        .unwrap_or(bare_sym);
-                    let pat = format!(
-                        r"\b(fn|def|function|class|struct|enum|type|const|let|var)\s+{}\b",
-                        regex::escape(bare_sym)
-                    );
-                    if let Ok(re) = regex::Regex::new(&pat) {
-                        for (idx, line) in lines.iter().enumerate() {
-                            if re.is_match(line) {
-                                let start_line = idx + 1;
-                                let mut end_line = (start_line + 30).min(line_count);
-                                let mut depth = 0i32;
-                                let mut started = false;
-                                for (j, l) in lines[idx..].iter().enumerate() {
-                                    let cur = idx + j + 1;
-                                    for c in l.chars() {
-                                        if c == '{' {
-                                            depth += 1;
-                                            started = true;
-                                        } else if c == '}' {
-                                            depth -= 1;
-                                        }
-                                    }
-                                    if started && depth <= 0 {
-                                        end_line = cur;
-                                        break;
-                                    }
-                                    if j > 60 {
-                                        end_line = cur;
-                                        break;
-                                    }
-                                }
-                                return Some(wxec_index::Symbol {
-                                    name: bare_sym.to_string(),
-                                    kind: "heuristic".to_string(),
-                                    start_line,
-                                    end_line,
-                                    indent: 0,
-                                    line_text: line.to_string(),
-                                    doc: None,
-                                });
-                            }
-                        }
-                    }
-                    None
-                })
-                .ok_or_else(|| {
-                    WErr::with_hint(
-                        "symbol_not_found",
-                        format!("symbol '{sym}' in {display}"),
-                        format!("try: w search pattern={sym} mode=symbol"),
-                    )
-                })?;
-            let mut start = found.start_line.max(1).min(line_count.max(1));
-            let mut end = found.end_line.max(start).min(line_count.max(1));
-            if let Some(ctx_lines) = a.context {
-                start = start.saturating_sub(ctx_lines).max(1);
-                end = (end + ctx_lines).min(line_count);
-            }
-            let mut cur = start;
-            while cur > 1 && (start - cur) < 10 {
-                let prev = lines[cur - 2].trim_start();
-                if prev.starts_with("///")
-                    || prev.starts_with("//!")
-                    || prev.starts_with("#[")
-                    || prev.starts_with('@')
-                    || prev.starts_with("/**")
-                    || prev.starts_with('*')
-                    || prev.starts_with("*/")
-                    || prev.starts_with("\"\"\"")
-                {
-                    cur -= 1;
-                } else {
-                    break;
-                }
-            }
-            start = cur;
-            let mut r = ToolResult::new(
-                "read",
-                format!("{display}:{start}-{end} {} ({short})", found.name),
-            );
-            let mut formatted_lines = Vec::with_capacity(end - start + 1);
-            for i in start..=end {
-                let l = lines[i - 1];
-                let formatted = if l.is_empty() {
-                    format!("{i}:")
-                } else {
-                    format!("{i}: {l}")
-                };
-                formatted_lines.push(formatted);
-            }
-            r.push(Item::new(ItemClass::Low, 5.0, formatted_lines));
-            r.meta
-                .counts
-                .insert("lines".into(), (end - start + 1) as i64);
-            record_read(
-                ctx,
-                &display,
-                Scope::Lines {
-                    start: start as u32,
-                    end: end as u32,
-                },
-                &full_hex,
-                &short,
-                mtime_ms,
-                file.size,
-                &text,
-                Some(&found.name),
-            )?;
-            return Ok(r);
-        }
-
-        if a.outline {
-            let outline = ctx.symbols.symbols(&abs, &text);
-            let mut r = ToolResult::new(
-                "read",
-                format!(
-                    "{display} outline ({} symbols, {short})",
-                    outline.symbols.len()
-                ),
-            );
-            if outline.heuristic {
-                r.note("heuristic_outline");
-            }
-            let mut formatted_symbols = Vec::with_capacity(outline.symbols.len());
-            for s in &outline.symbols {
-                let pad = " ".repeat(s.indent.min(40));
-                formatted_symbols.push(format!("{pad}{}: {} {}", s.start_line, s.kind, s.name));
-            }
-            r.push(Item::new(ItemClass::Low, 5.0, formatted_symbols));
-            r.meta
-                .counts
-                .insert("symbols".into(), outline.symbols.len() as i64);
-            record_read(
-                ctx,
-                &display,
-                Scope::Outline,
-                &full_hex,
-                &short,
-                mtime_ms,
-                file.size,
-                &text,
-                None,
-            )?;
-            return Ok(r);
-        }
-
-        if let Some(spec) = &a.lines {
-            let (mut start, mut end) = parse_line_range_clamped(spec, line_count)?;
-            if let Some(ctx_lines) = a.context {
-                start = start.saturating_sub(ctx_lines).max(1);
-                end = (end + ctx_lines).min(line_count);
-            }
-            let count = end - start + 1;
-            let range_str = if start == end {
-                format!("{start}")
-            } else {
-                format!("{start}-{end}")
-            };
-            if let Some(exp) = &a.expect_hash {
-                if !a.force && (exp == &short || exp == &full_hex) {
-                    let mut r = ToolResult::new(
-                        "read",
-                        format!("unchanged {display}:{range_str} ({short})"),
-                    );
-                    r.meta.counts.insert("lines".into(), count as i64);
-                    return Ok(r);
-                }
-            }
-            let count_str = util::plural(count, "line");
-            let header = if a.expect_hash.is_some() {
-                format!("{display}:{range_str} ({count_str}, {short})")
-            } else {
-                format!("{display}:{range_str} ({count_str})")
-            };
-            let mut r = ToolResult::new("read", header);
-            if ctx.config.output.verbosity == "verbose"
-                && spec_mismatch(spec, start, end, line_count)
-            {
-                r.note(format!("clamped {spec} -> {start}:{end}"));
-            }
-            let mut raw = String::new();
-            let mut formatted_lines = Vec::with_capacity(count);
-            for i in start..=end {
-                let l = lines[i - 1];
-                let line = if l.is_empty() {
-                    format!("{i}:")
-                } else {
-                    format!("{i}: {l}")
-                };
-                raw.push_str(&line);
-                raw.push('\n');
-                formatted_lines.push(line);
-            }
-            r.push(Item::new(ItemClass::MustKeep, 1.0, formatted_lines));
-            r.raw_text = Some(raw);
-            r.meta.counts.insert("lines".into(), count as i64);
-            record_read(
-                ctx,
-                &display,
-                Scope::Lines {
-                    start: start as u32,
-                    end: end as u32,
-                },
-                &full_hex,
-                &short,
-                mtime_ms,
-                file.size,
-                &text,
-                None,
-            )?;
-            return Ok(r);
-        }
-
-        let max_full = ctx.config.read.max_full_lines as usize;
-        let scope = if line_count <= max_full {
-            Scope::Full
-        } else {
-            Scope::Lines {
-                start: 1,
-                end: ctx.config.read.head_lines,
-            }
-        };
-        let ttl = ctx.config.session.ledger_ttl_secs;
-        let now = now_ms();
-        let previous = if a.force {
-            None
-        } else {
-            ctx.ledger.read_entry(&display, scope, ttl, now).cloned()
-        };
-        if let Some(prev) = &previous {
-            if prev.full_hash == full_hex {
-                if let Some(snap) = prev
-                    .snapshot_ref
-                    .as_ref()
-                    .filter(|id| ctx.handles.get(id).is_ok())
-                {
-                    let mut r = ToolResult::new(
-                        "read",
-                        format!("unchanged {display} ({short}) expand {snap}"),
-                    );
-                    r.meta.counts.insert("lines".into(), line_count as i64);
-                    r.meta.strings.insert("snapshot".into(), snap.clone());
-                    return Ok(r);
-                }
-            } else if !a.force && !a.outline && line_count > 30 {
-                if let Some(snap_id) = prev.snapshot_ref.as_ref() {
-                    if let Ok((prev_bytes, _)) = ctx.handles.get(snap_id) {
-                        let prev_text = String::from_utf8_lossy(&prev_bytes);
-                        let diff = similar::TextDiff::from_lines(prev_text.as_ref(), &text);
-                        let unified = diff
-                            .unified_diff()
-                            .context_radius(2)
-                            .header(&display, &display)
-                            .to_string();
-                        let diff_lines: Vec<String> =
-                            unified.lines().map(|l| l.to_string()).collect();
-                        if !diff_lines.is_empty() && diff_lines.len() * 2 < line_count {
-                            let h = ctx.handles.put("read", text.as_bytes(), "text")?;
-                            let mut r = ToolResult::new(
-                                "read",
-                                format!(
-                                    "delta {display} ({line_count} lines, {short}, prev {})",
-                                    prev.short
-                                ),
-                            );
-                            r.push(Item::new(ItemClass::High, 5.0, diff_lines));
-                            r.must(format!("full: {}", h.id));
-                            r.handle(HandleRef {
-                                id: h.id.clone(),
-                                kind: h.kind.clone(),
-                                bytes: h.bytes,
-                                hash: h.hash.clone(),
-                            });
-                            r.meta.counts.insert("lines".into(), line_count as i64);
-                            r.meta.strings.insert("hash".into(), short.clone());
-                            record_read_snapshot(
-                                ctx,
-                                &display,
-                                scope,
-                                &full_hex,
-                                &short,
-                                mtime_ms,
-                                file.size,
-                                &text,
-                                Some(h.id),
-                            )?;
-                            return Ok(r);
-                        }
-                    }
-                }
-            }
-        }
-
         let mut r = ToolResult::new(
             "read",
-            if line_count <= max_full {
-                format!("{display} ({line_count} lines, {short})")
-            } else {
-                format!("{display} ({line_count} lines, head+outline, {short})")
-            },
+            format!("binary {} {} bytes {short}", a.path, raw.len()),
         );
+        r.meta.counts.insert("bytes".into(), raw.len() as i64);
+        return Ok(r);
+    }
 
-        if line_count > max_full {
-            let head = (ctx.config.read.head_lines as usize).min(line_count);
-            for (i, line) in lines.iter().take(head).enumerate() {
-                let formatted = if line.is_empty() {
-                    format!("{}:", i + 1)
-                } else {
-                    format!("{}: {line}", i + 1)
-                };
-                r.push(Item::new(ItemClass::High, 6.0, vec![formatted]));
-            }
-            let h = ctx.handles.put("read", text.as_bytes(), "text")?;
-            r.must(format!("...+{} lines ({})", line_count - head, h.id));
-            r.handle(HandleRef {
-                id: h.id.clone(),
-                kind: h.kind.clone(),
-                bytes: h.bytes,
-                hash: h.hash.clone(),
-            });
-            let outline = ctx.symbols.symbols(&abs, &text);
-            if outline.heuristic {
-                r.note("heuristic_outline");
-            }
-            let mut outline_shown = 0usize;
-            let mut outline_skipped = 0usize;
-            const MAX_OUTLINE_LINES: usize = 50;
-            for s in &outline.symbols {
-                if s.start_line <= head {
-                    continue;
+    let display = ctx.rel(&abs);
+    let text = file.content;
+    let lines: Vec<&str> = text.lines().collect();
+    let line_count = lines.len();
+    let mtime_ms = std::fs::metadata(&abs)
+        .map(|m| wxec_core::types::file_mtime_ms(&m))
+        .unwrap_or(0);
+
+    if let Some(sym) = &a.symbol {
+        let found = ctx
+            .symbols
+            .find_symbol(&abs, &text, sym)
+            .or_else(|| {
+                let bare_sym = sym.rsplit_once("::").map(|(_, b)| b).unwrap_or(sym);
+                let bare_sym = bare_sym
+                    .rsplit_once('.')
+                    .map(|(_, b)| b)
+                    .unwrap_or(bare_sym);
+                let pat = format!(
+                    r"\b(fn|def|function|class|struct|enum|type|const|let|var)\s+{}\b",
+                    regex::escape(bare_sym)
+                );
+                if let Ok(re) = regex::Regex::new(&pat) {
+                    for (idx, line) in lines.iter().enumerate() {
+                        if re.is_match(line) {
+                            let start_line = idx + 1;
+                            let mut end_line = (start_line + 30).min(line_count);
+                            let mut depth = 0i32;
+                            let mut started = false;
+                            for (j, l) in lines[idx..].iter().enumerate() {
+                                let cur = idx + j + 1;
+                                for c in l.chars() {
+                                    if c == '{' {
+                                        depth += 1;
+                                        started = true;
+                                    } else if c == '}' {
+                                        depth -= 1;
+                                    }
+                                }
+                                if started && depth <= 0 {
+                                    end_line = cur;
+                                    break;
+                                }
+                                if j > 60 {
+                                    end_line = cur;
+                                    break;
+                                }
+                            }
+                            return Some(wxec_index::Symbol {
+                                name: bare_sym.to_string(),
+                                kind: "heuristic".to_string(),
+                                start_line,
+                                end_line,
+                                indent: 0,
+                                line_text: line.to_string(),
+                                doc: None,
+                            });
+                        }
+                    }
                 }
-                if outline_shown >= MAX_OUTLINE_LINES {
-                    outline_skipped += 1;
-                    continue;
-                }
-                let pad = " ".repeat(s.indent.min(40));
-                r.push(Item::new(
-                    ItemClass::High,
-                    4.0,
-                    vec![format!("{pad}{}: {} {}", s.start_line, s.kind, s.name)],
-                ));
-                outline_shown += 1;
-            }
-            if outline_skipped > 0 {
-                r.low(format!("+{outline_skipped} more symbols ({})", h.id));
-            }
-            record_read_snapshot(
-                ctx,
-                &display,
-                scope,
-                &full_hex,
-                &short,
-                mtime_ms,
-                file.size,
-                &text,
-                Some(h.id),
-            )?;
-            r.meta.counts.insert("lines".into(), line_count as i64);
-            return Ok(r);
+                None
+            })
+            .ok_or_else(|| {
+                WErr::with_hint(
+                    "symbol_not_found",
+                    format!("symbol '{sym}' in {display}"),
+                    format!("try: w search pattern={sym} mode=symbol"),
+                )
+            })?;
+        let mut start = found.start_line.max(1).min(line_count.max(1));
+        let mut end = found.end_line.max(start).min(line_count.max(1));
+        if let Some(ctx_lines) = a.context {
+            start = start.saturating_sub(ctx_lines).max(1);
+            end = (end + ctx_lines).min(line_count);
         }
+        let mut cur = start;
+        while cur > 1 && (start - cur) < 10 {
+            let prev = lines[cur - 2].trim_start();
+            if prev.starts_with("///")
+                || prev.starts_with("//!")
+                || prev.starts_with("#[")
+                || prev.starts_with('@')
+                || prev.starts_with("/**")
+                || prev.starts_with('*')
+                || prev.starts_with("*/")
+                || prev.starts_with("\"\"\"")
+            {
+                cur -= 1;
+            } else {
+                break;
+            }
+        }
+        start = cur;
+        let mut r = ToolResult::new(
+            "read",
+            format!("{display}:{start}-{end} {} ({short})", found.name),
+        );
+        let mut formatted_lines = Vec::with_capacity(end - start + 1);
+        for i in start..=end {
+            let l = lines[i - 1];
+            let formatted = if l.is_empty() {
+                format!("{i}:")
+            } else {
+                format!("{i}: {l}")
+            };
+            formatted_lines.push(formatted);
+        }
+        r.push(Item::new(ItemClass::Low, 5.0, formatted_lines));
+        r.meta
+            .counts
+            .insert("lines".into(), (end - start + 1) as i64);
+        record_read(
+            ctx,
+            &display,
+            Scope::Lines {
+                start: start as u32,
+                end: end as u32,
+            },
+            &full_hex,
+            &short,
+            mtime_ms,
+            file.size,
+            &text,
+            Some(&found.name),
+        )?;
+        return Ok(r);
+    }
 
-        let full_text_est = wxec_core::estimator::estimate_text(&text);
-        let mut used_diff = false;
-        if let Some(prev) = &previous {
-            if let Some(snap) = &prev.snapshot_ref {
-                if let Ok((bytes, _)) = ctx.handles.get(snap) {
-                    let old_cow = String::from_utf8_lossy(&bytes);
-                    let diff_lines = render_diff(&old_cow, &text);
-                    if wxec_core::estimator::estimate_lines(&diff_lines) < full_text_est {
-                        used_diff = true;
-                        r.header = format!("{display} diff ({short})");
-                        r.push(Item::new(ItemClass::High, 6.0, diff_lines));
+    if a.outline {
+        let outline = ctx.symbols.symbols(&abs, &text);
+        let mut r = ToolResult::new(
+            "read",
+            format!(
+                "{display} outline ({} symbols, {short})",
+                outline.symbols.len()
+            ),
+        );
+        if outline.heuristic {
+            r.note("heuristic_outline");
+        }
+        let mut formatted_symbols = Vec::with_capacity(outline.symbols.len());
+        for s in &outline.symbols {
+            let pad = " ".repeat(s.indent.min(40));
+            formatted_symbols.push(format!("{pad}{}: {} {}", s.start_line, s.kind, s.name));
+        }
+        r.push(Item::new(ItemClass::Low, 5.0, formatted_symbols));
+        r.meta
+            .counts
+            .insert("symbols".into(), outline.symbols.len() as i64);
+        record_read(
+            ctx,
+            &display,
+            Scope::Outline,
+            &full_hex,
+            &short,
+            mtime_ms,
+            file.size,
+            &text,
+            None,
+        )?;
+        return Ok(r);
+    }
+
+    if let Some(spec) = &a.lines {
+        let (mut start, mut end) = parse_line_range_clamped(spec, line_count)?;
+        if let Some(ctx_lines) = a.context {
+            start = start.saturating_sub(ctx_lines).max(1);
+            end = (end + ctx_lines).min(line_count);
+        }
+        let count = end - start + 1;
+        let range_str = if start == end {
+            format!("{start}")
+        } else {
+            format!("{start}-{end}")
+        };
+        if let Some(exp) = &a.expect_hash {
+            if !a.force && (exp == &short || exp == &full_hex) {
+                let mut r =
+                    ToolResult::new("read", format!("unchanged {display}:{range_str} ({short})"));
+                r.meta.counts.insert("lines".into(), count as i64);
+                return Ok(r);
+            }
+        }
+        let count_str = util::plural(count, "line");
+        let header = if a.expect_hash.is_some() {
+            format!("{display}:{range_str} ({count_str}, {short})")
+        } else {
+            format!("{display}:{range_str} ({count_str})")
+        };
+        let mut r = ToolResult::new("read", header);
+        if ctx.config.output.verbosity == "verbose" && spec_mismatch(spec, start, end, line_count) {
+            r.note(format!("clamped {spec} -> {start}:{end}"));
+        }
+        let mut raw = String::new();
+        let mut formatted_lines = Vec::with_capacity(count);
+        for i in start..=end {
+            let l = lines[i - 1];
+            let line = if l.is_empty() {
+                format!("{i}:")
+            } else {
+                format!("{i}: {l}")
+            };
+            raw.push_str(&line);
+            raw.push('\n');
+            formatted_lines.push(line);
+        }
+        r.push(Item::new(ItemClass::MustKeep, 1.0, formatted_lines));
+        r.raw_text = Some(raw);
+        r.meta.counts.insert("lines".into(), count as i64);
+        record_read(
+            ctx,
+            &display,
+            Scope::Lines {
+                start: start as u32,
+                end: end as u32,
+            },
+            &full_hex,
+            &short,
+            mtime_ms,
+            file.size,
+            &text,
+            None,
+        )?;
+        return Ok(r);
+    }
+
+    let max_full = ctx.config.read.max_full_lines as usize;
+    let scope = if line_count <= max_full {
+        Scope::Full
+    } else {
+        Scope::Lines {
+            start: 1,
+            end: ctx.config.read.head_lines,
+        }
+    };
+    let ttl = ctx.config.session.ledger_ttl_secs;
+    let now = now_ms();
+    let previous = if a.force {
+        None
+    } else {
+        ctx.ledger.read_entry(&display, scope, ttl, now).cloned()
+    };
+    if let Some(prev) = &previous {
+        if prev.full_hash == full_hex {
+            if let Some(snap) = prev
+                .snapshot_ref
+                .as_ref()
+                .filter(|id| ctx.handles.get(id).is_ok())
+            {
+                let mut r = ToolResult::new(
+                    "read",
+                    format!("unchanged {display} ({short}) expand {snap}"),
+                );
+                r.meta.counts.insert("lines".into(), line_count as i64);
+                r.meta.strings.insert("snapshot".into(), snap.clone());
+                return Ok(r);
+            }
+        } else if !a.force && !a.outline && line_count > 30 {
+            if let Some(snap_id) = prev.snapshot_ref.as_ref() {
+                if let Ok((prev_bytes, _)) = ctx.handles.get(snap_id) {
+                    let prev_text = String::from_utf8_lossy(&prev_bytes);
+                    let diff = similar::TextDiff::from_lines(prev_text.as_ref(), &text);
+                    let unified = diff
+                        .unified_diff()
+                        .context_radius(2)
+                        .header(&display, &display)
+                        .to_string();
+                    let diff_lines: Vec<String> = unified.lines().map(|l| l.to_string()).collect();
+                    if !diff_lines.is_empty() && diff_lines.len() * 2 < line_count {
+                        let h = ctx.handles.put("read", text.as_bytes(), "text")?;
+                        let mut r = ToolResult::new(
+                            "read",
+                            format!(
+                                "delta {display} ({line_count} lines, {short}, prev {})",
+                                prev.short
+                            ),
+                        );
+                        r.push(Item::new(ItemClass::High, 5.0, diff_lines));
+                        r.must(format!("full: {}", h.id));
+                        r.handle(HandleRef {
+                            id: h.id.clone(),
+                            kind: h.kind.clone(),
+                            bytes: h.bytes,
+                            hash: h.hash.clone(),
+                        });
+                        r.meta.counts.insert("lines".into(), line_count as i64);
+                        r.meta.strings.insert("hash".into(), short.clone());
+                        record_read_snapshot(
+                            ctx,
+                            &display,
+                            scope,
+                            &full_hex,
+                            &short,
+                            mtime_ms,
+                            file.size,
+                            &text,
+                            Some(h.id),
+                        )?;
+                        return Ok(r);
                     }
                 }
             }
         }
-        if !used_diff {
-            for (i, line) in lines.iter().enumerate() {
-                let formatted = if line.is_empty() {
-                    format!("{}:", i + 1)
-                } else {
-                    format!("{}: {line}", i + 1)
-                };
-                r.low(formatted);
-            }
+    }
+
+    let mut r = ToolResult::new(
+        "read",
+        if line_count <= max_full {
+            format!("{display} ({line_count} lines, {short})")
+        } else {
+            format!("{display} ({line_count} lines, head+outline, {short})")
+        },
+    );
+
+    if line_count > max_full {
+        let head = (ctx.config.read.head_lines as usize).min(line_count);
+        for (i, line) in lines.iter().take(head).enumerate() {
+            let formatted = if line.is_empty() {
+                format!("{}:", i + 1)
+            } else {
+                format!("{}: {line}", i + 1)
+            };
+            r.push(Item::new(ItemClass::High, 6.0, vec![formatted]));
         }
-        let snapshot = ctx.handles.put("read_snapshot", text.as_bytes(), "text")?;
-        r.meta
-            .strings
-            .insert("snapshot".into(), snapshot.id.clone());
+        let h = ctx.handles.put("read", text.as_bytes(), "text")?;
+        r.must(format!("...+{} lines ({})", line_count - head, h.id));
+        r.handle(HandleRef {
+            id: h.id.clone(),
+            kind: h.kind.clone(),
+            bytes: h.bytes,
+            hash: h.hash.clone(),
+        });
+        let outline = ctx.symbols.symbols(&abs, &text);
+        if outline.heuristic {
+            r.note("heuristic_outline");
+        }
+        let mut outline_shown = 0usize;
+        let mut outline_skipped = 0usize;
+        const MAX_OUTLINE_LINES: usize = 50;
+        for s in &outline.symbols {
+            if s.start_line <= head {
+                continue;
+            }
+            if outline_shown >= MAX_OUTLINE_LINES {
+                outline_skipped += 1;
+                continue;
+            }
+            let pad = " ".repeat(s.indent.min(40));
+            r.push(Item::new(
+                ItemClass::High,
+                4.0,
+                vec![format!("{pad}{}: {} {}", s.start_line, s.kind, s.name)],
+            ));
+            outline_shown += 1;
+        }
+        if outline_skipped > 0 {
+            r.low(format!("+{outline_skipped} more symbols ({})", h.id));
+        }
         record_read_snapshot(
             ctx,
             &display,
@@ -947,11 +902,54 @@ impl Tool for ReadTool {
             mtime_ms,
             file.size,
             &text,
-            Some(snapshot.id),
+            Some(h.id),
         )?;
         r.meta.counts.insert("lines".into(), line_count as i64);
-        Ok(r)
+        return Ok(r);
     }
+
+    let full_text_est = wxec_core::estimator::estimate_text(&text);
+    let mut used_diff = false;
+    if let Some(prev) = &previous {
+        if let Some(snap) = &prev.snapshot_ref {
+            if let Ok((bytes, _)) = ctx.handles.get(snap) {
+                let old_cow = String::from_utf8_lossy(&bytes);
+                let diff_lines = render_diff(&old_cow, &text);
+                if wxec_core::estimator::estimate_lines(&diff_lines) < full_text_est {
+                    used_diff = true;
+                    r.header = format!("{display} diff ({short})");
+                    r.push(Item::new(ItemClass::High, 6.0, diff_lines));
+                }
+            }
+        }
+    }
+    if !used_diff {
+        for (i, line) in lines.iter().enumerate() {
+            let formatted = if line.is_empty() {
+                format!("{}:", i + 1)
+            } else {
+                format!("{}: {line}", i + 1)
+            };
+            r.low(formatted);
+        }
+    }
+    let snapshot = ctx.handles.put("read_snapshot", text.as_bytes(), "text")?;
+    r.meta
+        .strings
+        .insert("snapshot".into(), snapshot.id.clone());
+    record_read_snapshot(
+        ctx,
+        &display,
+        scope,
+        &full_hex,
+        &short,
+        mtime_ms,
+        file.size,
+        &text,
+        Some(snapshot.id),
+    )?;
+    r.meta.counts.insert("lines".into(), line_count as i64);
+    Ok(r)
 }
 
 fn spec_mismatch(spec: &str, start: usize, end: usize, len: usize) -> bool {
