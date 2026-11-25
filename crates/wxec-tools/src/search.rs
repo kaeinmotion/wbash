@@ -415,7 +415,7 @@ impl Tool for SearchTool {
         }
 
         let mut context_lines: Vec<String> = Vec::new();
-        let mut context_line_cache: HashMap<String, Vec<String>> = HashMap::new();
+        let mut context_text_cache: HashMap<String, std::sync::Arc<str>> = HashMap::new();
 
         let mut file_order: Vec<String> = Vec::new();
         let mut by_file: HashMap<String, Vec<Hit>> = HashMap::new();
@@ -432,6 +432,8 @@ impl Tool for SearchTool {
                 continue;
             };
             fhits.sort_by(|a, b| a.line.cmp(&b.line).then(a.col.cmp(&b.col)));
+            let mut seen_ctx_lines: std::collections::HashSet<u32> =
+                fhits.iter().map(|h| h.line).collect();
             let grouped = fhits.len() >= 2;
             if grouped {
                 result.push(Item::new(
@@ -480,23 +482,21 @@ impl Tool for SearchTool {
                     ));
                 }
                 if a.context > 0 {
-                    let all = context_line_cache
+                    let text = context_text_cache
                         .entry(hit.path.clone())
                         .or_insert_with(|| {
                             ctx.workspace
                                 .read_search_text_for_path(&hit.path)
-                                .map(|t| t.lines().map(|s| s.trim_end().to_string()).collect())
-                                .unwrap_or_default()
+                                .unwrap_or_else(|_| std::sync::Arc::from(""))
                         });
-                    if !all.is_empty() {
+                    if !text.is_empty() {
                         let lo = (hit.line as usize).saturating_sub(a.context as usize + 1);
-                        let hi = ((hit.line as usize) + a.context as usize).min(all.len());
-                        for (k, l) in all.iter().enumerate().take(hi).skip(lo) {
-                            let n = k + 1;
-                            if n as u32 == hit.line {
-                                continue;
+                        let hi = (hit.line as usize) + a.context as usize;
+                        for (k, l) in text.lines().enumerate().take(hi).skip(lo) {
+                            let n = (k + 1) as u32;
+                            if seen_ctx_lines.insert(n) {
+                                context_lines.push(format!("{}:{}- {}", hit.path, n, l.trim()));
                             }
-                            context_lines.push(format!("{}:{}- {}", hit.path, n, l.trim()));
                         }
                     }
                 }
