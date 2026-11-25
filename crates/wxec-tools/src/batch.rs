@@ -212,8 +212,16 @@ impl Tool for BatchTool {
                     let has_text = !rendered.text.trim().is_empty();
                     if has_text || !child.handles.is_empty() || !child_ok {
                         let lines: Vec<&str> = rendered.text.lines().collect();
-                        let hdr_class = if child_ok { ItemClass::High } else { ItemClass::MustKeep };
-                        let body_class = if child_ok { ItemClass::Low } else { ItemClass::MustKeep };
+                        let hdr_class = if child_ok {
+                            ItemClass::High
+                        } else {
+                            ItemClass::MustKeep
+                        };
+                        let body_class = if child_ok {
+                            ItemClass::Low
+                        } else {
+                            ItemClass::MustKeep
+                        };
                         let prio = if child_ok { 5.0 } else { 1000.0 };
                         if lines.is_empty() {
                             used_items_tokens =

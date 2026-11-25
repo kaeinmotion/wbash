@@ -905,7 +905,6 @@ fn test_ergonomic_tool_features() {
         "{}",
         fo_limited.text
     );
-
 }
 
 #[test]
@@ -961,8 +960,16 @@ fn test_user_reported_bugs() {
     // 39. check on a subdir without a project file does not silently run parent Cargo.toml
     let py_sub = root.join("py_throwaway");
     std::fs::create_dir_all(&py_sub).unwrap();
-    std::fs::write(py_sub.join("test_cart.py"), "def test_fail(): assert False\n").unwrap();
-    let check_sub = call(&mut d, "check", json!({"path": "py_throwaway", "kind": "test"}));
+    std::fs::write(
+        py_sub.join("test_cart.py"),
+        "def test_fail(): assert False\n",
+    )
+    .unwrap();
+    let check_sub = call(
+        &mut d,
+        "check",
+        json!({"path": "py_throwaway", "kind": "test"}),
+    );
     assert!(!check_sub.ok, "expected error, got: {}", check_sub.text);
     assert!(
         check_sub.text.contains("no_checker_detected"),
@@ -971,14 +978,22 @@ fn test_user_reported_bugs() {
     );
 
     // 40. sh creating a file invalidates workspace walk cache so immediate search finds it
-    let _warm = call(&mut d, "search", json!({"pattern": "shell_created_needle_xyz"}));
+    let _warm = call(
+        &mut d,
+        "search",
+        json!({"pattern": "shell_created_needle_xyz"}),
+    );
     let mk_file = call(
         &mut d,
         "sh",
         json!({"command": "echo 'shell_created_needle_xyz' > shell_created.txt"}),
     );
     assert!(mk_file.ok, "{}", mk_file.text);
-    let found_after_sh = call(&mut d, "search", json!({"pattern": "shell_created_needle_xyz"}));
+    let found_after_sh = call(
+        &mut d,
+        "search",
+        json!({"pattern": "shell_created_needle_xyz"}),
+    );
     assert!(found_after_sh.ok, "{}", found_after_sh.text);
     assert!(
         found_after_sh.text.contains("shell_created.txt"),
@@ -1017,7 +1032,11 @@ fn test_user_reported_bugs() {
         "{}",
         tree_ig.text
     );
-    let search_ig = call(&mut d, "search", json!({"pattern": "needle", "path": "target"}));
+    let search_ig = call(
+        &mut d,
+        "search",
+        json!({"pattern": "needle", "path": "target"}),
+    );
     assert!(search_ig.ok, "{}", search_ig.text);
     assert!(
         search_ig.text.contains("ignored directory 'target'"),
@@ -1032,7 +1051,11 @@ fn test_user_reported_bugs() {
         json!({"argv": "[\"echo\", \"json_argv_ok\"]"}),
     );
     assert!(json_argv.ok, "{}", json_argv.text);
-    assert!(json_argv.text.contains("json_argv_ok"), "{}", json_argv.text);
+    assert!(
+        json_argv.text.contains("json_argv_ok"),
+        "{}",
+        json_argv.text
+    );
 
     // 44. edit dry_run=true does not mutate disk on append or delete
     let dry_file = root.join("dry_guard.txt");
@@ -1090,11 +1113,7 @@ fn test_user_reported_bugs() {
             .and_then(|s| s.split(')').next())
             .expect("handle id in 36-line output")
     );
-    let multi_exp = call(
-        &mut d,
-        "expand",
-        json!({"refs": [h1, lines36_hid]}),
-    );
+    let multi_exp = call(&mut d, "expand", json!({"refs": [h1, lines36_hid]}));
     assert!(multi_exp.ok, "{}", multi_exp.text);
     assert!(
         multi_exp.text.contains("...+300 lines ("),
@@ -1106,7 +1125,11 @@ fn test_user_reported_bugs() {
         "expand",
         json!({"refs": [seq_hid, "~nonexistent999"]}),
     );
-    assert!(!multi_err.ok, "missing handle should set ok=false: {}", multi_err.text);
+    assert!(
+        !multi_err.ok,
+        "missing handle should set ok=false: {}",
+        multi_err.text
+    );
 
     // 47. search cache_key distinguishes case_insensitive and word flags
     std::fs::write(root.join("case_word.txt"), "foobarbaz\nCamelCaseValue\n").unwrap();

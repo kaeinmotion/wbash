@@ -159,8 +159,10 @@ pub fn record_output(
     // Keep a handle for lossless access whenever output is non-trivial or lines are omitted.
     let verbose = ctx.config.output.verbosity == "verbose";
     let non_empty_count = raw.lines().filter(|l| !l.trim_end().is_empty()).count();
-    let will_omit_unparsed =
-        output.exit.is_success() && parsed.is_none() && !verbose && (non_empty_count > 10 || raw.len() > 800);
+    let will_omit_unparsed = output.exit.is_success()
+        && parsed.is_none()
+        && !verbose
+        && (non_empty_count > 10 || raw.len() > 800);
     let need_handle = !raw.trim().is_empty()
         && (will_omit_unparsed
             || raw.len() > 4096

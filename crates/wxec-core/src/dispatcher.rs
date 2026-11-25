@@ -196,8 +196,7 @@ impl Dispatcher {
 
         let mut mutating = match self.registry.get(tool) {
             Some(t) => {
-                t.min_tier() >= Tier::WriteWorkspace
-                    || matches!(t.name(), "run" | "sh" | "check")
+                t.min_tier() >= Tier::WriteWorkspace || matches!(t.name(), "run" | "sh" | "check")
             }
             None => false,
         };
@@ -229,7 +228,14 @@ impl Dispatcher {
                                 .is_some_and(|op| {
                                     matches!(
                                         op,
-                                        "commit" | "push" | "add" | "checkout" | "switch" | "pull" | "custom" | "raw"
+                                        "commit"
+                                            | "push"
+                                            | "add"
+                                            | "checkout"
+                                            | "switch"
+                                            | "pull"
+                                            | "custom"
+                                            | "raw"
                                     )
                                 });
                         }

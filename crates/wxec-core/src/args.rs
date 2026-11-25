@@ -354,7 +354,11 @@ where
         {
             if s.trim_start().starts_with('[') {
                 if let Ok(items) = serde_json::from_str::<Vec<String>>(s) {
-                    return if items.is_empty() { Ok(None) } else { Ok(Some(items)) };
+                    return if items.is_empty() {
+                        Ok(None)
+                    } else {
+                        Ok(Some(items))
+                    };
                 }
             }
             let parts = split_shell_tokens(s);
