@@ -791,6 +791,52 @@ impl Tool for ReadTool {
                     r.meta.counts.insert("lines".into(), line_count as i64);
                     return Ok(r);
                 }
+            } else if !a.force && !a.outline && line_count > 30 {
+                if let Some(snap_id) = prev.snapshot_ref.as_ref() {
+                    if let Ok((prev_bytes, _)) = ctx.handles.get(snap_id) {
+                        let prev_text = String::from_utf8_lossy(&prev_bytes);
+                        let diff = similar::TextDiff::from_lines(prev_text.as_ref(), &text);
+                        let unified = diff
+                            .unified_diff()
+                            .context_radius(2)
+                            .header(&display, &display)
+                            .to_string();
+                        let diff_lines: Vec<String> =
+                            unified.lines().map(|l| l.to_string()).collect();
+                        if !diff_lines.is_empty() && diff_lines.len() * 2 < line_count {
+                            let h = ctx.handles.put("read", text.as_bytes(), "text")?;
+                            let mut r = ToolResult::new(
+                                "read",
+                                format!(
+                                    "delta {display} ({line_count} lines, {short}, prev {})",
+                                    prev.short
+                                ),
+                            );
+                            r.push(Item::new(ItemClass::High, 5.0, diff_lines));
+                            r.must(format!("full: {}", h.id));
+                            r.handle(HandleRef {
+                                id: h.id.clone(),
+                                kind: h.kind.clone(),
+                                bytes: h.bytes,
+                                hash: h.hash.clone(),
+                            });
+                            r.meta.counts.insert("lines".into(), line_count as i64);
+                            r.meta.strings.insert("hash".into(), short.clone());
+                            record_read_snapshot(
+                                ctx,
+                                &display,
+                                scope,
+                                &full_hex,
+                                &short,
+                                mtime_ms,
+                                file.size,
+                                &text,
+                                Some(h.id),
+                            )?;
+                            return Ok(r);
+                        }
+                    }
+                }
             }
         }
 

@@ -857,19 +857,20 @@ impl SymbolIndex {
             .map(|(_, b)| b)
             .unwrap_or(bare_name);
         let outline = self.symbols(path, source);
+        if let Some(exact) = outline
+            .symbols
+            .iter()
+            .filter(|s| s.name == name || s.name == bare_name)
+            .min_by_key(|s| (s.start_line, s.end_line))
+        {
+            return Some(exact.clone());
+        }
+        let lower = bare_name.to_ascii_lowercase();
         outline
             .symbols
             .into_iter()
-            .filter(|s| s.name == name || s.name == bare_name)
+            .filter(|s| s.name.to_ascii_lowercase() == lower)
             .min_by_key(|s| (s.start_line, s.end_line))
-            .or_else(|| {
-                let lower = bare_name.to_ascii_lowercase();
-                let o = self.symbols(path, source);
-                o.symbols
-                    .into_iter()
-                    .filter(|s| s.name.to_ascii_lowercase() == lower)
-                    .min_by_key(|s| (s.start_line, s.end_line))
-            })
     }
 }
 
@@ -1112,42 +1113,27 @@ fn doc_before(lines: &[&str], start_line: usize) -> Option<String> {
     }
 }
 
-/// Regex-ish heuristic outline for unsupported languages (spec §8.4 fallback).
+/// Heuristic outline for languages without a compiled tree-sitter grammar (Java, C#, Ruby, C/C++, SQL, Bash, Zig, etc.).
 pub fn heuristic_outline(source: &str) -> Vec<Symbol> {
     let mut out = Vec::new();
     for (idx, line) in source.lines().enumerate() {
         let trimmed = line.trim_start();
+        if trimmed.is_empty()
+            || trimmed.starts_with("//")
+            || trimmed.starts_with('#')
+            || trimmed.starts_with("/*")
+            || trimmed.starts_with('*')
+            || trimmed.starts_with("--")
+        {
+            continue;
+        }
         let leading = line.len() - trimmed.len();
-        let kind = if trimmed.starts_with("pub fn ")
-            || trimmed.starts_with("fn ")
-            || trimmed.starts_with("pub async fn ")
-            || trimmed.starts_with("async fn ")
-        {
-            "fn"
-        } else if trimmed.starts_with("def ") || trimmed.starts_with("async def ") {
-            "def"
-        } else if trimmed.starts_with("class ") {
-            "class"
-        } else if trimmed.starts_with("func ") {
-            "fn"
-        } else if trimmed.starts_with("struct ")
-            || trimmed.starts_with("pub struct ")
-            || trimmed.starts_with("interface ")
-            || trimmed.starts_with("export interface ")
-            || trimmed.starts_with("trait ")
-            || trimmed.starts_with("pub trait ")
-            || trimmed.starts_with("impl ")
-            || trimmed.starts_with("pub impl ")
-            || trimmed.starts_with("enum ")
-            || trimmed.starts_with("pub enum ")
-            || trimmed.starts_with("type ")
-            || trimmed.starts_with("export type ")
-        {
-            "type"
+        let lower = trimmed.to_ascii_lowercase();
+        let (kind, ident) = if let Some((k, name)) = parse_heuristic_decl(trimmed, &lower) {
+            (k, name)
         } else {
             continue;
         };
-        let ident = extract_ident(trimmed);
         if ident.is_empty() {
             continue;
         }
@@ -1162,6 +1148,123 @@ pub fn heuristic_outline(source: &str) -> Vec<Symbol> {
         });
     }
     out
+}
+
+fn parse_heuristic_decl(trimmed: &str, lower: &str) -> Option<(&'static str, String)> {
+    // Bash / POSIX shell function: `foo() {`
+    if let Some(before_paren) = trimmed
+        .strip_suffix("() {")
+        .or_else(|| trimmed.strip_suffix("(){"))
+    {
+        let name = before_paren.trim();
+        if !name.is_empty()
+            && name
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
+            return Some(("fn", name.to_string()));
+        }
+    }
+
+    // SQL DDL: CREATE [OR REPLACE] [TEMP|TEMPORARY] TABLE|VIEW|FUNCTION|PROCEDURE <name>
+    if lower.starts_with("create ") {
+        let mut tokens = trimmed.split_whitespace().skip(1).peekable();
+        if tokens.peek().is_some_and(|t| t.eq_ignore_ascii_case("or")) {
+            tokens.next();
+            if tokens
+                .peek()
+                .is_some_and(|t| t.eq_ignore_ascii_case("replace"))
+            {
+                tokens.next();
+            }
+        }
+        if tokens
+            .peek()
+            .is_some_and(|t| t.eq_ignore_ascii_case("temp") || t.eq_ignore_ascii_case("temporary"))
+        {
+            tokens.next();
+        }
+        if let Some(obj) = tokens.next() {
+            let kind = match obj.to_ascii_lowercase().as_str() {
+                "table" | "view" | "index" => Some("type"),
+                "function" | "procedure" => Some("fn"),
+                _ => None,
+            };
+            if let Some(k) = kind {
+                if tokens.peek().is_some_and(|t| t.eq_ignore_ascii_case("if")) {
+                    // skip `IF NOT EXISTS`
+                    tokens.next();
+                    if tokens.peek().is_some_and(|t| t.eq_ignore_ascii_case("not")) {
+                        tokens.next();
+                    }
+                    if tokens
+                        .peek()
+                        .is_some_and(|t| t.eq_ignore_ascii_case("exists"))
+                    {
+                        tokens.next();
+                    }
+                }
+                if let Some(raw_name) = tokens.next() {
+                    let clean = extract_ident(raw_name);
+                    if !clean.is_empty() {
+                        return Some((k, clean));
+                    }
+                }
+            }
+        }
+        return None;
+    }
+
+    // Strip leading visibility/modifier keywords for Rust, Ruby, Java, C#, Kotlin, Swift, PHP, C++, Zig
+    let mut rest = trimmed;
+    loop {
+        let first_word = rest.split_whitespace().next()?;
+        let fw_lower = first_word.to_ascii_lowercase();
+        let is_modifier = matches!(
+            fw_lower.as_str(),
+            "pub"
+                | "pub(crate)"
+                | "pub(super)"
+                | "public"
+                | "private"
+                | "protected"
+                | "internal"
+                | "export"
+                | "default"
+                | "async"
+                | "static"
+                | "final"
+                | "abstract"
+                | "override"
+                | "virtual"
+                | "inline"
+                | "extern"
+        );
+        if is_modifier {
+            rest = rest[first_word.len()..].trim_start();
+        } else {
+            break;
+        }
+    }
+
+    let kw = rest.split_whitespace().next()?;
+    let kw_lower = kw.to_ascii_lowercase();
+    let kind = match kw_lower.as_str() {
+        "fn" | "func" | "fun" | "function" => "fn",
+        "def" => "def",
+        "class" | "record" => "class",
+        "struct" | "interface" | "trait" | "impl" | "enum" | "type" | "module" | "namespace" => {
+            "type"
+        }
+        _ => return None,
+    };
+    let after_kw = rest[kw.len()..].trim_start();
+    let name = extract_ident(after_kw);
+    if name.is_empty() {
+        None
+    } else {
+        Some((kind, name))
+    }
 }
 
 fn extract_ident(line: &str) -> String {
