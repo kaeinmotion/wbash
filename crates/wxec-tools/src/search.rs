@@ -619,6 +619,9 @@ fn scan_symbol(
             stats.skipped_binary += 1;
             continue;
         }
+        if !contains_ignore_ascii_case(&text, pat_lc) {
+            continue;
+        }
         let path_lc = f.rel.to_ascii_lowercase();
         let outline = ctx
             .symbols
@@ -810,6 +813,28 @@ fn looks_like_definition(line: &str) -> bool {
             if pos > 0 && t.as_bytes()[pos - 1] == b' ' {
                 return true;
             }
+        }
+    }
+    false
+}
+
+fn contains_ignore_ascii_case(haystack: &str, needle_lc: &str) -> bool {
+    if needle_lc.is_empty() {
+        return true;
+    }
+    if !needle_lc.is_ascii() {
+        return haystack.to_lowercase().contains(needle_lc);
+    }
+    let nb = needle_lc.as_bytes();
+    let hb = haystack.as_bytes();
+    if nb.len() > hb.len() {
+        return false;
+    }
+    let first = nb[0];
+    let limit = hb.len() - nb.len();
+    for i in 0..=limit {
+        if hb[i].to_ascii_lowercase() == first && hb[i..i + nb.len()].eq_ignore_ascii_case(nb) {
+            return true;
         }
     }
     false
