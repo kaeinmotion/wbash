@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-25T05:49:16Z",
+  "generated_at": "2026-11-25T05:51:36Z",
   "tokenizer": "cl100k_base",
   "summary": {
     "bash": {
@@ -8,7 +8,7 @@
       "tokens_est": 12497,
       "tokens_cl100k": 12623,
       "steps": 52,
-      "wall_ms": 110151,
+      "wall_ms": 68292,
       "by_kind": {
         "explain": {
           "tasks": 5,
@@ -60,7 +60,7 @@
       "tokens_est": 3292,
       "tokens_cl100k": 4578,
       "steps": 43,
-      "wall_ms": 124123,
+      "wall_ms": 68581,
       "by_kind": {
         "explain": {
           "tasks": 5,
@@ -121,7 +121,7 @@
       "missing_expect": [],
       "tokens_est": 50,
       "tokens_cl100k": 63,
-      "wall_ms": 387
+      "wall_ms": 111
     },
     {
       "task": "locate_resolve",
@@ -136,7 +136,7 @@
       "missing_expect": [],
       "tokens_est": 53,
       "tokens_cl100k": 66,
-      "wall_ms": 2008
+      "wall_ms": 182
     },
     {
       "task": "locate_render_tree",
@@ -151,7 +151,7 @@
       "missing_expect": [],
       "tokens_est": 22,
       "tokens_cl100k": 27,
-      "wall_ms": 104
+      "wall_ms": 65
     },
     {
       "task": "locate_render_tree",
@@ -166,7 +166,7 @@
       "missing_expect": [],
       "tokens_est": 20,
       "tokens_cl100k": 24,
-      "wall_ms": 481
+      "wall_ms": 129
     },
     {
       "task": "locate_readseen",
@@ -181,7 +181,7 @@
       "missing_expect": [],
       "tokens_est": 24,
       "tokens_cl100k": 28,
-      "wall_ms": 205
+      "wall_ms": 73
     },
     {
       "task": "locate_readseen",
@@ -196,7 +196,7 @@
       "missing_expect": [],
       "tokens_est": 22,
       "tokens_cl100k": 25,
-      "wall_ms": 173
+      "wall_ms": 123
     },
     {
       "task": "locate_parse_cargo",
@@ -211,7 +211,7 @@
       "missing_expect": [],
       "tokens_est": 39,
       "tokens_cl100k": 51,
-      "wall_ms": 180
+      "wall_ms": 79
     },
     {
       "task": "locate_parse_cargo",
@@ -226,7 +226,7 @@
       "missing_expect": [],
       "tokens_est": 37,
       "tokens_cl100k": 48,
-      "wall_ms": 171
+      "wall_ms": 113
     },
     {
       "task": "locate_mcp_handle",
@@ -241,7 +241,7 @@
       "missing_expect": [],
       "tokens_est": 95,
       "tokens_cl100k": 118,
-      "wall_ms": 180
+      "wall_ms": 98
     },
     {
       "task": "locate_mcp_handle",
@@ -256,7 +256,7 @@
       "missing_expect": [],
       "tokens_est": 97,
       "tokens_cl100k": 120,
-      "wall_ms": 155
+      "wall_ms": 103
     },
     {
       "task": "locate_handle_put",
@@ -271,7 +271,7 @@
       "missing_expect": [],
       "tokens_est": 40,
       "tokens_cl100k": 55,
-      "wall_ms": 198
+      "wall_ms": 60
     },
     {
       "task": "locate_handle_put",
@@ -286,7 +286,7 @@
       "missing_expect": [],
       "tokens_est": 37,
       "tokens_cl100k": 51,
-      "wall_ms": 128
+      "wall_ms": 120
     },
     {
       "task": "locate_schema_budget",
@@ -301,7 +301,7 @@
       "missing_expect": [],
       "tokens_est": 69,
       "tokens_cl100k": 85,
-      "wall_ms": 72
+      "wall_ms": 66
     },
     {
       "task": "locate_schema_budget",
@@ -316,7 +316,7 @@
       "missing_expect": [],
       "tokens_est": 53,
       "tokens_cl100k": 72,
-      "wall_ms": 119
+      "wall_ms": 120
     },
     {
       "task": "locate_tier_gate",
@@ -331,7 +331,7 @@
       "missing_expect": [],
       "tokens_est": 42,
       "tokens_cl100k": 56,
-      "wall_ms": 122
+      "wall_ms": 60
     },
     {
       "task": "locate_tier_gate",
@@ -346,7 +346,7 @@
       "missing_expect": [],
       "tokens_est": 41,
       "tokens_cl100k": 53,
-      "wall_ms": 118
+      "wall_ms": 111
     },
     {
       "task": "explain_dispatch",
@@ -362,7 +362,7 @@
       "missing_expect": [],
       "tokens_est": 2039,
       "tokens_cl100k": 1713,
-      "wall_ms": 100
+      "wall_ms": 123
     },
     {
       "task": "explain_dispatch",
@@ -377,7 +377,7 @@
       "missing_expect": [],
       "tokens_est": 195,
       "tokens_cl100k": 297,
-      "wall_ms": 92
+      "wall_ms": 136
     },
     {
       "task": "explain_parsers",
@@ -393,7 +393,7 @@
       "missing_expect": [],
       "tokens_est": 2103,
       "tokens_cl100k": 1903,
-      "wall_ms": 148
+      "wall_ms": 77
     },
     {
       "task": "explain_parsers",
@@ -408,7 +408,7 @@
       "missing_expect": [],
       "tokens_est": 369,
       "tokens_cl100k": 572,
-      "wall_ms": 386
+      "wall_ms": 82
     },
     {
       "task": "explain_util",
@@ -424,7 +424,7 @@
       "missing_expect": [],
       "tokens_est": 1835,
       "tokens_cl100k": 1817,
-      "wall_ms": 438
+      "wall_ms": 78
     },
     {
       "task": "explain_util",
@@ -439,7 +439,7 @@
       "missing_expect": [],
       "tokens_est": 295,
       "tokens_cl100k": 379,
-      "wall_ms": 226
+      "wall_ms": 83
     },
     {
       "task": "explain_cli",
@@ -455,7 +455,7 @@
       "missing_expect": [],
       "tokens_est": 2362,
       "tokens_cl100k": 2392,
-      "wall_ms": 172
+      "wall_ms": 80
     },
     {
       "task": "explain_cli",
@@ -470,7 +470,7 @@
       "missing_expect": [],
       "tokens_est": 508,
       "tokens_cl100k": 716,
-      "wall_ms": 274
+      "wall_ms": 92
     },
     {
       "task": "explain_handles",
@@ -486,7 +486,7 @@
       "missing_expect": [],
       "tokens_est": 1981,
       "tokens_cl100k": 1812,
-      "wall_ms": 168
+      "wall_ms": 89
     },
     {
       "task": "explain_handles",
@@ -501,7 +501,7 @@
       "missing_expect": [],
       "tokens_est": 193,
       "tokens_cl100k": 288,
-      "wall_ms": 108
+      "wall_ms": 78
     },
     {
       "task": "diff_farewell",
@@ -517,7 +517,7 @@
       "missing_expect": [],
       "tokens_est": 85,
       "tokens_cl100k": 119,
-      "wall_ms": 261
+      "wall_ms": 171
     },
     {
       "task": "diff_farewell",
@@ -533,7 +533,7 @@
       "missing_expect": [],
       "tokens_est": 44,
       "tokens_cl100k": 66,
-      "wall_ms": 414
+      "wall_ms": 260
     },
     {
       "task": "diff_version",
@@ -549,7 +549,7 @@
       "missing_expect": [],
       "tokens_est": 84,
       "tokens_cl100k": 117,
-      "wall_ms": 219
+      "wall_ms": 312
     },
     {
       "task": "diff_version",
@@ -565,7 +565,7 @@
       "missing_expect": [],
       "tokens_est": 44,
       "tokens_cl100k": 65,
-      "wall_ms": 403
+      "wall_ms": 172
     },
     {
       "task": "diff_status",
@@ -581,7 +581,7 @@
       "missing_expect": [],
       "tokens_est": 84,
       "tokens_cl100k": 118,
-      "wall_ms": 188
+      "wall_ms": 104
     },
     {
       "task": "diff_status",
@@ -597,7 +597,7 @@
       "missing_expect": [],
       "tokens_est": 43,
       "tokens_cl100k": 65,
-      "wall_ms": 288
+      "wall_ms": 160
     },
     {
       "task": "fix_add",
@@ -611,9 +611,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 151,
+      "tokens_est": 148,
       "tokens_cl100k": 204,
-      "wall_ms": 13453
+      "wall_ms": 6597
     },
     {
       "task": "fix_add",
@@ -629,7 +629,7 @@
       "missing_expect": [],
       "tokens_est": 138,
       "tokens_cl100k": 192,
-      "wall_ms": 14837
+      "wall_ms": 6347
     },
     {
       "task": "fix_sub",
@@ -645,7 +645,7 @@
       "missing_expect": [],
       "tokens_est": 148,
       "tokens_cl100k": 204,
-      "wall_ms": 9010
+      "wall_ms": 7369
     },
     {
       "task": "fix_sub",
@@ -661,7 +661,7 @@
       "missing_expect": [],
       "tokens_est": 138,
       "tokens_cl100k": 192,
-      "wall_ms": 11741
+      "wall_ms": 6622
     },
     {
       "task": "fix_mul",
@@ -677,7 +677,7 @@
       "missing_expect": [],
       "tokens_est": 148,
       "tokens_cl100k": 204,
-      "wall_ms": 11302
+      "wall_ms": 7608
     },
     {
       "task": "fix_mul",
@@ -693,7 +693,7 @@
       "missing_expect": [],
       "tokens_est": 138,
       "tokens_cl100k": 192,
-      "wall_ms": 12899
+      "wall_ms": 7411
     },
     {
       "task": "fix_clamp",
@@ -709,7 +709,7 @@
       "missing_expect": [],
       "tokens_est": 151,
       "tokens_cl100k": 201,
-      "wall_ms": 10199
+      "wall_ms": 6831
     },
     {
       "task": "fix_clamp",
@@ -725,7 +725,7 @@
       "missing_expect": [],
       "tokens_est": 140,
       "tokens_cl100k": 187,
-      "wall_ms": 8464
+      "wall_ms": 7467
     },
     {
       "task": "fix_parse",
@@ -739,9 +739,9 @@
       ],
       "check_exit": 0,
       "missing_expect": [],
-      "tokens_est": 137,
+      "tokens_est": 140,
       "tokens_cl100k": 184,
-      "wall_ms": 7751
+      "wall_ms": 7575
     },
     {
       "task": "fix_parse",
@@ -757,7 +757,7 @@
       "missing_expect": [],
       "tokens_est": 128,
       "tokens_cl100k": 171,
-      "wall_ms": 7886
+      "wall_ms": 7266
     },
     {
       "task": "fix_fib",
@@ -773,7 +773,7 @@
       "missing_expect": [],
       "tokens_est": 127,
       "tokens_cl100k": 172,
-      "wall_ms": 8582
+      "wall_ms": 6968
     },
     {
       "task": "fix_fib",
@@ -789,7 +789,7 @@
       "missing_expect": [],
       "tokens_est": 118,
       "tokens_cl100k": 158,
-      "wall_ms": 7958
+      "wall_ms": 6546
     },
     {
       "task": "rename_sum",
@@ -805,7 +805,7 @@
       "missing_expect": [],
       "tokens_est": 47,
       "tokens_cl100k": 74,
-      "wall_ms": 3932
+      "wall_ms": 3320
     },
     {
       "task": "rename_sum",
@@ -820,7 +820,7 @@
       "missing_expect": [],
       "tokens_est": 35,
       "tokens_cl100k": 44,
-      "wall_ms": 5317
+      "wall_ms": 4032
     },
     {
       "task": "rename_plus",
@@ -836,7 +836,7 @@
       "missing_expect": [],
       "tokens_est": 47,
       "tokens_cl100k": 74,
-      "wall_ms": 8063
+      "wall_ms": 3116
     },
     {
       "task": "rename_plus",
@@ -851,7 +851,7 @@
       "missing_expect": [],
       "tokens_est": 35,
       "tokens_cl100k": 44,
-      "wall_ms": 10206
+      "wall_ms": 3528
     },
     {
       "task": "rename_total",
@@ -867,7 +867,7 @@
       "missing_expect": [],
       "tokens_est": 47,
       "tokens_cl100k": 74,
-      "wall_ms": 8522
+      "wall_ms": 3540
     },
     {
       "task": "rename_total",
@@ -882,7 +882,7 @@
       "missing_expect": [],
       "tokens_est": 36,
       "tokens_cl100k": 44,
-      "wall_ms": 6331
+      "wall_ms": 3035
     },
     {
       "task": "rename_combine",
@@ -898,7 +898,7 @@
       "missing_expect": [],
       "tokens_est": 48,
       "tokens_cl100k": 74,
-      "wall_ms": 7045
+      "wall_ms": 3264
     },
     {
       "task": "rename_combine",
@@ -913,7 +913,7 @@
       "missing_expect": [],
       "tokens_est": 36,
       "tokens_cl100k": 44,
-      "wall_ms": 17322
+      "wall_ms": 3683
     },
     {
       "task": "lint_unused_var",
@@ -929,7 +929,7 @@
       "missing_expect": [],
       "tokens_est": 128,
       "tokens_cl100k": 167,
-      "wall_ms": 2071
+      "wall_ms": 862
     },
     {
       "task": "lint_unused_var",
@@ -945,7 +945,7 @@
       "missing_expect": [],
       "tokens_est": 89,
       "tokens_cl100k": 107,
-      "wall_ms": 2496
+      "wall_ms": 845
     },
     {
       "task": "lint_needless_mut",
@@ -961,7 +961,7 @@
       "missing_expect": [],
       "tokens_est": 121,
       "tokens_cl100k": 168,
-      "wall_ms": 2082
+      "wall_ms": 784
     },
     {
       "task": "lint_needless_mut",
@@ -977,7 +977,7 @@
       "missing_expect": [],
       "tokens_est": 85,
       "tokens_cl100k": 109,
-      "wall_ms": 1580
+      "wall_ms": 900
     },
     {
       "task": "type_return_string",
@@ -993,7 +993,7 @@
       "missing_expect": [],
       "tokens_est": 121,
       "tokens_cl100k": 166,
-      "wall_ms": 8745
+      "wall_ms": 4506
     },
     {
       "task": "type_return_string",
@@ -1009,7 +1009,7 @@
       "missing_expect": [],
       "tokens_est": 50,
       "tokens_cl100k": 71,
-      "wall_ms": 5977
+      "wall_ms": 5059
     },
     {
       "task": "syntax_missing_semi",
@@ -1025,7 +1025,7 @@
       "missing_expect": [],
       "tokens_est": 122,
       "tokens_cl100k": 183,
-      "wall_ms": 6252
+      "wall_ms": 4306
     },
     {
       "task": "syntax_missing_semi",
@@ -1041,7 +1041,7 @@
       "missing_expect": [],
       "tokens_est": 75,
       "tokens_cl100k": 116,
-      "wall_ms": 5565
+      "wall_ms": 3776
     }
   ]
 }
